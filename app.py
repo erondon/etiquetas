@@ -74,6 +74,13 @@ def init_db():
             FOREIGN KEY (factura_id) REFERENCES facturas(id) ON DELETE CASCADE
         )
     """)
+    # Catálogo de productos (código → descripción completa)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS productos_catalogo (
+            codigo      TEXT PRIMARY KEY,
+            descripcion TEXT NOT NULL
+        )
+    """)
     # Tabla de proveedores con código de 4 dígitos
     db.execute("""
         CREATE TABLE IF NOT EXISTS proveedores (
@@ -474,6 +481,17 @@ def get_items(fid):
 
     items = [row_to_dict(r) for r in
              db.execute('SELECT * FROM factura_items WHERE factura_id=? ORDER BY id', (fid,))]
+    # Enriquecer descripciones desde catálogo
+    codigos = [it['codigo'] for it in items if it.get('codigo')]
+    if codigos:
+        ph  = ','.join('?' * len(codigos))
+        cat = {r[0]: r[1] for r in db.execute(
+            f'SELECT codigo, descripcion FROM productos_catalogo WHERE codigo IN ({ph})',
+            codigos
+        ).fetchall()}
+        for it in items:
+            if it.get('codigo') in cat:
+                it['descripcion'] = cat[it['codigo']]
     return jsonify({'factura': fac_dict, 'items': items})
 
 @app.route('/api/upload_y_reimportar', methods=['POST'])
@@ -710,6 +728,55 @@ def api_dashboard():
         'total_pendiente':  db.execute("SELECT COALESCE(SUM(total),0)     FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
         'total_pend_usd':   db.execute("SELECT COALESCE(SUM(total_usd),0) FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
     })
+
+@app.route('/api/catalogo/stats')
+def catalogo_stats():
+    db = get_db()
+    count = db.execute('SELECT COUNT(*) FROM productos_catalogo').fetchone()[0]
+    return jsonify({'count': count})
+
+@app.route('/api/catalogo/upload', methods=['POST'])
+def catalogo_upload():
+    if 'excel' not in request.files:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    archivo = request.files['excel']
+    fname = archivo.filename.lower()
+    if not fname.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'Solo se aceptan archivos Excel (.xlsx, .xls)'}), 400
+    try:
+        if fname.endswith('.xlsx'):
+            import openpyxl
+            wb   = openpyxl.load_workbook(archivo, read_only=True, data_only=True)
+            ws   = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+            wb.close()
+        else:
+            import xlrd
+            data = archivo.read()
+            wb   = xlrd.open_workbook(file_contents=data)
+            ws   = wb.sheet_by_index(0)
+            rows = [tuple(ws.row_values(r)) for r in range(ws.nrows)]
+    except Exception as e:
+        return jsonify({'error': f'Error al leer el Excel: {e}'}), 400
+    if not rows:
+        return jsonify({'error': 'El archivo está vacío'}), 400
+    # Columna A (índice 0) = código, Columna C (índice 2) = descripción
+    # Cabecera en fila 12 (índice 11), datos desde fila 13 (índice 12)
+    data_rows = rows[12:]
+    db    = get_db()
+    count = 0
+    for row in data_rows:
+        if len(row) < 3:
+            continue
+        codigo = str(row[0] or '').strip().upper()
+        desc   = str(row[2] or '').strip()
+        if codigo and desc:
+            db.execute('INSERT OR REPLACE INTO productos_catalogo (codigo, descripcion) VALUES (?,?)',
+                       (codigo, desc))
+            count += 1
+    db.commit()
+    return jsonify({'ok': True, 'cargados': count,
+                    'mensaje': f'{count} productos cargados al catálogo'})
 
 @app.route('/api/tasa', methods=['GET', 'POST'])
 def api_tasa():
