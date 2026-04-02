@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CxP Manager — Cuentas por Pagar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f14;--surface:#161921;--surface2:#1e2230;--border:#2a2f3d;--accent:#f0b429;--accent2:#3d8ef8;--danger:#f05a5a;--success:#3ecf8e;--warn:#f0a329;--text:#e8eaf0;--muted:#6b7280;--mono:'DM Mono',monospace;--sans:'Inter',sans-serif;--display:'Syne',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5}
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
+.main{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.content{padding:28px;flex:1}
+.logo{padding:24px 20px 16px;border-bottom:1px solid var(--border)}
+.logo-text{font-family:var(--display);font-size:18px;font-weight:800;color:var(--accent);letter-spacing:-0.5px}
+.logo-sub{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-top:2px}
+.nav{padding:16px 0;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--muted);cursor:pointer;transition:all 0.2s;font-size:13px;font-weight:500;border-left:3px solid transparent;text-decoration:none}
+.nav-item:hover,.nav-item.active{color:var(--text);background:var(--surface2);border-left-color:var(--accent)}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+.nav-section{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;padding:8px 20px 4px;margin-top:8px}
+.printer-badge{background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin:12px;padding:12px}
+.printer-badge .pbname{font-size:11px;font-weight:600;color:var(--accent);font-family:var(--display)}
+.printer-badge .pbstatus{font-size:10px;color:var(--muted);margin-top:2px}
+.page-title{font-family:var(--display);font-size:20px;font-weight:700}
+.topbar-actions{display:flex;gap:10px;align-items:center}
+.tasa-widget{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px}
+.tasa-widget label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+.tasa-widget input{background:transparent;border:none;color:var(--accent);font-family:var(--mono);font-size:13px;font-weight:600;width:90px;text-align:right;outline:none}
+.tasa-widget input:focus{color:var(--text)}
+.tasa-widget .tasa-flag{font-size:11px;color:var(--muted)}
+.usd-val{font-size:11px;color:var(--success);font-family:var(--mono);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:500;font-family:var(--sans);transition:all 0.15s;text-decoration:none}
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:hover{background:#e0a520;transform:translateY(-1px)}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-danger{background:rgba(240,90,90,0.15);color:var(--danger);border:1px solid rgba(240,90,90,0.3)}
+.btn-danger:hover{background:rgba(240,90,90,0.25)}
+.btn-success{background:rgba(62,207,142,0.15);color:var(--success);border:1px solid rgba(62,207,142,0.3)}
+.btn-success:hover{background:rgba(62,207,142,0.25)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{padding:6px;border-radius:6px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.pend::before{background:var(--accent)}
+.stat-card.venc::before{background:var(--danger)}
+.stat-card.paid::before{background:var(--success)}
+.stat-card.total::before{background:var(--accent2)}
+.stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:500}
+.stat-value{font-family:var(--display);font-size:28px;font-weight:800;margin-top:6px;letter-spacing:-1px}
+.stat-card.pend .stat-value{color:var(--accent)}
+.stat-card.venc .stat-value{color:var(--danger)}
+.stat-card.paid .stat-value{color:var(--success)}
+.stat-card.total .stat-value{color:var(--accent2);font-size:18px}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.table-title{font-family:var(--display);font-size:15px;font-weight:700}
+.filters{display:flex;gap:8px;align-items:center}
+.filter-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;transition:all 0.15s;font-family:var(--sans)}
+.filter-btn:hover,.filter-btn.active{background:var(--surface2);color:var(--text)}
+.filter-btn.f-pend.active{border-color:var(--accent);color:var(--accent)}
+.filter-btn.f-venc.active{border-color:var(--danger);color:var(--danger)}
+.filter-btn.f-paid.active{border-color:var(--success);color:var(--success)}
+table{width:100%;border-collapse:collapse}
+th{padding:11px 16px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border);background:var(--surface);white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid rgba(42,47,61,0.5);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.td-mono{font-family:var(--mono);font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%}
+.badge-pend{background:rgba(240,180,41,0.12);color:var(--accent);border:1px solid rgba(240,180,41,0.25)}
+.badge-pend::before{background:var(--accent)}
+.badge-venc{background:rgba(240,90,90,0.12);color:var(--danger);border:1px solid rgba(240,90,90,0.25)}
+.badge-venc::before{background:var(--danger)}
+.badge-paid{background:rgba(62,207,142,0.12);color:var(--success);border:1px solid rgba(62,207,142,0.25)}
+.badge-paid::before{background:var(--success)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:min(660px,95vw);max-height:90vh;overflow:auto;animation:slideUp 0.25s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-head{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:1}
+.modal-title{font-family:var(--display);font-size:16px;font-weight:700}
+.modal-body{padding:24px}
+.modal-foot{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+label{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:var(--sans);font-size:13px;transition:border-color 0.15s;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+input[readonly]{opacity:0.55;cursor:default}
+textarea{resize:vertical;min-height:70px}
+select option{background:var(--surface2)}
+.section-divider{grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0;padding-top:10px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(240,180,41,0.03)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{width:40px;height:40px;margin:0 auto 12px;color:var(--muted)}
+.upload-title{font-weight:600;color:var(--text);font-size:14px}
+.upload-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.progress-wrap{margin-top:12px;display:none}
+.progress-bar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s;width:0}
+.result-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(62,207,142,0.08);border:1px solid rgba(62,207,142,0.2);border-radius:8px;margin-bottom:16px}
+.items-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.items-table th{padding:6px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+.items-table td{padding:6px 10px;border-bottom:1px solid rgba(42,47,61,0.4);font-family:var(--mono);font-size:11px}
+.items-table tr:last-child td{border-bottom:none}
+.zpl-box{background:#0a0c10;border:1px solid var(--border);border-radius:8px;padding:14px;font-family:var(--mono);font-size:11px;color:#7ae787;line-height:1.6;max-height:200px;overflow:auto;white-space:pre}
+.label-preview{background:#fff;border-radius:6px;padding:10px 14px;color:#000;font-family:'Courier New',monospace;font-size:11px;line-height:1.8;border:2px solid var(--border);max-width:300px}
+.lp-header{font-weight:700;font-size:13px;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:6px}
+.lp-row{display:flex;justify-content:space-between;gap:8px}
+.lp-row .k{color:#555;flex-shrink:0}
+.lp-total{font-weight:700;font-size:14px;border-top:1px solid #ccc;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between}
+.lp-barcode{text-align:center;font-size:9px;letter-spacing:3px;margin-top:8px;border-top:1px solid #eee;padding-top:6px;color:#333}
+.radio-group{display:flex;gap:12px}
+.radio-opt{flex:1;border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;transition:all 0.15s}
+.radio-opt:hover,.radio-opt.selected{border-color:var(--accent);background:rgba(240,180,41,0.05)}
+.radio-label{font-weight:600;font-size:13px}
+.radio-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.toast-container{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:500}
+.toast{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;font-size:13px;animation:fadeUp 0.3s ease;min-width:260px;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+.toast.success{border-left:3px solid var(--success)}
+.toast.error{border-left:3px solid var(--danger)}
+.toast.info{border-left:3px solid var(--accent2)}
+@keyframes fadeUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{width:48px;height:48px;margin:0 auto 16px;opacity:0.35}
+.empty-title{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px}
+.search-wrap{position:relative}
+.search-wrap input{padding-left:32px;width:220px}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+@media(max-width:900px){.stats-grid{grid-template-columns:1fr 1fr}.sidebar{display:none}.main{margin-left:0}.form-grid-3{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-text">CxP Manager</div>
+      <div class="logo-sub">Cuentas por Pagar · A2</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-section">Principal</div>
+      <a class="nav-item active" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        Documentos
+      </a>
+      <a class="nav-item" href="#" onclick="openUploadModal();return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
+        Cargar PDF A2
+      </a>
+      <a class="nav-item" href="#" onclick="openManualModal();return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo manual
+      </a>
+      <div class="nav-section">Configuración</div>
+      <a class="nav-item" href="#" onclick="openProveedoresModal();return false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Proveedores
+      </a>
+    </nav>
+    <div class="printer-badge">
+      <div class="pbname">🖨 Zebra ZD2824 Plus</div>
+      <div class="pbstatus" id="printerStatus">Sin configurar</div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%" onclick="openPrinterConfig()">Configurar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="page-title">Cuentas por Pagar</div>
+      <div class="topbar-actions">
+        <!-- Tasa de cambio -->
+        <div class="tasa-widget" title="Tasa de cambio Bs/USD activa">
+          <span class="tasa-flag">🇻🇪 Bs ÷</span>
+          <input type="number" id="tasaInput" min="1" step="0.01" placeholder="Tasa Bs/USD"
+                 onchange="guardarTasa(this.value)" onblur="guardarTasa(this.value)">
+          <span class="tasa-flag">= 🇺🇸 1$</span>
+        </div>
+        <div class="search-wrap">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Buscar proveedor, doc..." id="searchInput" oninput="filterTable()">
+        </div>
+        <button class="btn btn-primary" onclick="openUploadModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Cargar PDF
+        </button>
+        <button class="btn btn-secondary" onclick="openManualModal()">+ Nuevo</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="stats-grid">
+        <div class="stat-card pend">
+          <div class="stat-label">Pendientes</div>
+          <div class="stat-value" id="sPendientes">{{ pendientes }}</div>
+          <div class="stat-sub">documentos activos</div>
+        </div>
+        <div class="stat-card venc">
+          <div class="stat-label">Vencidos</div>
+          <div class="stat-value" id="sVencidas">{{ vencidas }}</div>
+          <div class="stat-sub">requieren atención</div>
+        </div>
+        <div class="stat-card paid">
+          <div class="stat-label">Pagados</div>
+          <div class="stat-value" id="sPagadas">{{ pagadas }}</div>
+          <div class="stat-sub">completados</div>
+        </div>
+        <div class="stat-card total">
+          <div class="stat-label">Total Pendiente</div>
+          <div class="stat-value" id="sTotal" style="font-size:16px">{{ "{:,.0f}".format(total_pendiente) }} <span style="font-size:12px;font-weight:400;opacity:.7">VES</span></div>
+          <div class="stat-sub" id="sTotalUsd" style="color:var(--success);font-family:var(--mono);font-size:13px;margin-top:4px">$ —</div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">Documentos de Compra</div>
+          <div class="filters">
+            <button class="filter-btn active" onclick="setFilter('todos',this)">Todos</button>
+            <button class="filter-btn f-pend" onclick="setFilter('pendiente',this)">Pendiente</button>
+            <button class="filter-btn f-venc" onclick="setFilter('vencido',this)">Vencido</button>
+            <button class="filter-btn f-paid" onclick="setFilter('pagado',this)">Pagado</button>
+          </div>
+        </div>
+
+        {% if facturas %}
+        <div style="overflow-x:auto">
+        <table id="facturasTable">
+          <thead>
+            <tr>
+              <th>Proveedor</th>
+              <th>Tipo / N°</th>
+              <th>Fecha</th>
+              <th>Total VES</th>
+              <th>Tasa</th>
+              <th style="color:var(--success)">Total USD</th>
+              <th>Estado</th>
+              <th style="width:180px">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="facturasBody">
+            {% for f in facturas %}
+            <tr data-estado="{{ f.estado }}" data-id="{{ f.id }}"
+                data-search="{{ (f.proveedor or '')|lower }} {{ (f.num_documento or '')|lower }} {{ (f.empresa_propia or '')|lower }}">
+              <td>
+                <div style="font-weight:500">{{ f.proveedor or '—' }}</div>
+                <div style="font-size:11px;color:var(--muted)">{{ f.empresa_propia or '' }}</div>
+              </td>
+              <td class="td-mono">
+                <div>{{ f.tipo_doc or 'COMPRA' }}</div>
+                <div style="color:var(--accent);font-size:12px">#{{ f.num_documento }}</div>
+              </td>
+              <td class="td-mono">{{ f.fecha or '—' }}</td>
+              <td class="td-mono" style="font-weight:700">
+                {{ f.moneda }} {{ "{:,.2f}".format(f.total or 0) }}
+              </td>
+              <td class="td-mono" style="color:var(--muted);font-size:11px">
+                {% if f.tasa_cambio and f.tasa_cambio != 1 %}
+                  {{ "{:,.2f}".format(f.tasa_cambio) }}
+                {% else %}—{% endif %}
+              </td>
+              <td class="td-mono usd-val">
+                {% if f.total_usd and f.total_usd > 0 %}
+                  $ {{ "{:,.2f}".format(f.total_usd) }}
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if f.estado == 'pendiente' %}<span class="badge badge-pend">Pendiente</span>
+                {% elif f.estado == 'vencido' %}<span class="badge badge-venc">Vencido</span>
+                {% else %}<span class="badge badge-paid">Pagado</span>{% endif %}
+              </td>
+              <td>
+                <div style="display:flex;gap:5px;flex-wrap:wrap">
+                  <button class="btn btn-secondary btn-sm" title="Imprimir etiquetas de productos"
+                    onclick="openPrintModal({{ f.id }})" style="gap:5px">
+                    🏷 Etiquetas
+                  </button>
+                  {% if f.estado != 'pagado' %}
+                  <button class="btn btn-success btn-sm" onclick="marcarPagado({{ f.id }},this)">✓ Pagado</button>
+                  {% endif %}
+                  <button class="btn btn-danger btn-sm btn-icon" title="Eliminar"
+                    onclick="eliminarDoc({{ f.id }},this)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div class="empty-title">Sin documentos registrados</div>
+          <div class="empty-sub">Carga un PDF de A2 Softway o crea un documento manualmente</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════════ MODAL: CARGAR PDF ═══════════════════ -->
+<div class="overlay" id="uploadModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">📄 Cargar PDF — A2 Softway</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('uploadModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" accept=".pdf" id="pdfInput" onchange="handleFileSelect(this)">
+        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
+        <div class="upload-title" id="uploadTitle">Arrastra el PDF o haz clic para seleccionar</div>
+        <div class="upload-sub">Documentos de Compra / Factura generados por A2 Softway</div>
+        <div class="progress-wrap" id="progressWrap">
+          <div style="font-size:12px;color:var(--muted)">Extrayendo datos del PDF...</div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+      </div>
+
+      <div id="extractedForm" style="display:none;margin-top:20px">
+        <div class="result-banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          <span style="font-size:13px;font-weight:500;color:var(--success)">Datos extraídos correctamente</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">Verifica antes de guardar</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="section-divider">📦 Datos del documento</div>
+
+          <div class="form-group">
+            <label>Empresa emisora (tu empresa)</label>
+            <input type="text" id="f_empresa_propia" readonly>
+          </div>
+          <div class="form-group">
+            <label>RIF de la empresa</label>
+            <input type="text" id="f_rif_propio" readonly>
+          </div>
+          <div class="form-group">
+            <label>Proveedor</label>
+            <input type="text" id="f_proveedor" placeholder="Nombre del proveedor">
+          </div>
+          <div class="form-group">
+            <label>RIF Proveedor</label>
+            <input type="text" id="f_rif_proveedor" placeholder="J-XXXXXXXX-X">
+          </div>
+          <div class="form-group">
+            <label>Tipo de documento</label>
+            <select id="f_tipo_doc">
+              <option value="COMPRA">COMPRA</option>
+              <option value="FACTURA">FACTURA</option>
+              <option value="NOTA DE DEBITO">NOTA DE DEBITO</option>
+              <option value="NOTA DE CREDITO">NOTA DE CREDITO</option>
+              <option value="DEVOLUCION">DEVOLUCIÓN</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>N° Documento</label>
+            <input type="text" id="f_num_documento">
+          </div>
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="f_fecha">
+          </div>
+          <div class="form-group">
+            <label>Fecha vencimiento (opcional)</label>
+            <input type="date" id="f_fecha_vence">
+          </div>
+
+          <div class="section-divider">💰 Montos</div>
+
+          <div class="form-group full">
+            <label>🔄 Tasa de cambio (Bs. por 1 USD)</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="number" step="0.01" min="1" id="f_tasa_cambio" placeholder="Ej: 94.50"
+                     oninput="calcUSD()" style="flex:1">
+              <div style="font-size:12px;color:var(--muted);white-space:nowrap">÷ tasa = USD</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Subtotal VES</label>
+            <input type="number" step="0.01" id="f_subtotal" oninput="calcUSD()">
+          </div>
+          <div class="form-group">
+            <label>Subtotal USD <span style="color:var(--success)" id="f_subtotal_usd_lbl"></span></label>
+            <input type="number" step="0.0001" id="f_subtotal_usd" readonly style="color:var(--success)">
+          </div>
+          <div class="form-group">
+            <label>Flete VES</label>
+            <input type="number" step="0.01" id="f_flete" value="0">
+          </div>
+          <div class="form-group">
+            <label>IVA VES</label>
+            <input type="number" step="0.01" id="f_monto_iva" oninput="calcUSD()">
+          </div>
+          <div class="form-group">
+            <label>IVA USD <span style="color:var(--success)" id="f_iva_usd_lbl"></span></label>
+            <input type="number" step="0.0001" id="f_monto_iva_usd" readonly style="color:var(--success)">
+          </div>
+          <div class="form-group">
+            <label>Total VES</label>
+            <input type="number" step="0.01" id="f_total" oninput="calcUSD()">
+          </div>
+          <div class="form-group">
+            <label>Total USD <span style="color:var(--success);font-weight:700" id="f_total_usd_lbl"></span></label>
+            <input type="number" step="0.0001" id="f_total_usd" readonly style="color:var(--success);font-weight:600">
+          </div>
+          <div class="form-group">
+            <label>Moneda</label>
+            <select id="f_moneda">
+              <option value="VES">VES — Bolívar</option>
+              <option value="USD">USD — Dólar</option>
+              <option value="EUR">EUR — Euro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estado</label>
+            <select id="f_estado">
+              <option value="pendiente">Pendiente</option>
+              <option value="pagado">Pagado</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Notas</label>
+            <textarea id="f_notas" placeholder="Observaciones..."></textarea>
+          </div>
+        </div>
+
+        <!-- Items del documento -->
+        <div id="itemsSection" style="display:none;margin-top:16px">
+          <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">
+            Ítems del documento (<span id="itemsCount">0</span>)
+          </div>
+          <div style="overflow-x:auto;max-height:180px;overflow-y:auto">
+            <table class="items-table">
+              <thead><tr><th>Código</th><th>Descripción</th><th>Cant</th><th>P.Unit</th><th>Total</th></tr></thead>
+              <tbody id="itemsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <details style="margin-top:12px">
+          <summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">Ver texto raw extraído del PDF</summary>
+          <pre id="rawText" style="margin-top:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;font-family:var(--mono);color:var(--muted);max-height:150px;overflow:auto;white-space:pre-wrap"></pre>
+        </details>
+        <input type="hidden" id="f_archivo_pdf">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('uploadModal')">Cancelar</button>
+      <button class="btn btn-primary" id="saveExtracted" style="display:none" onclick="guardarExtraido()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Guardar documento
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: NUEVO MANUAL ═══════════════════ -->
+<div class="overlay" id="manualModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">➕ Nuevo documento manual</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('manualModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Empresa emisora</label>
+          <input type="text" id="m_empresa_propia" placeholder="Tu empresa">
+        </div>
+        <div class="form-group">
+          <label>RIF empresa</label>
+          <input type="text" id="m_rif_propio" placeholder="J-XXXXXXXX-X">
+        </div>
+        <div class="form-group">
+          <label>Proveedor *</label>
+          <input type="text" id="m_proveedor">
+        </div>
+        <div class="form-group">
+          <label>RIF Proveedor</label>
+          <input type="text" id="m_rif_proveedor">
+        </div>
+        <div class="form-group">
+          <label>Tipo documento</label>
+          <select id="m_tipo_doc">
+            <option value="COMPRA">COMPRA</option>
+            <option value="FACTURA">FACTURA</option>
+            <option value="NOTA DE DEBITO">NOTA DE DEBITO</option>
+            <option value="NOTA DE CREDITO">NOTA DE CREDITO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>N° Documento *</label>
+          <input type="text" id="m_num_documento">
+        </div>
+        <div class="form-group">
+          <label>Fecha</label>
+          <input type="date" id="m_fecha">
+        </div>
+        <div class="form-group">
+          <label>Fecha vencimiento</label>
+          <input type="date" id="m_fecha_vence">
+        </div>
+        <div class="form-group">
+          <label>Subtotal</label>
+          <input type="number" step="0.01" id="m_subtotal" value="0">
+        </div>
+        <div class="form-group">
+          <label>IVA</label>
+          <input type="number" step="0.01" id="m_monto_iva" value="0">
+        </div>
+        <div class="form-group">
+          <label>Total VES *</label>
+          <input type="number" step="0.01" id="m_total" value="0" oninput="calcUSDManual()">
+        </div>
+        <div class="form-group">
+          <label>Tasa Bs/USD</label>
+          <input type="number" step="0.01" id="m_tasa_cambio" placeholder="Ej: 94.50" oninput="calcUSDManual()">
+        </div>
+        <div class="form-group">
+          <label>Total USD <span style="color:var(--success)" id="m_total_usd_lbl"></span></label>
+          <input type="number" step="0.0001" id="m_total_usd" readonly style="color:var(--success)">
+        </div>
+        <div class="form-group">
+          <label>Moneda</label>
+          <select id="m_moneda"><option value="VES">VES</option><option value="USD">USD</option><option value="EUR">EUR</option></select>
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select id="m_estado"><option value="pendiente">Pendiente</option><option value="pagado">Pagado</option></select>
+        </div>
+        <div class="form-group full">
+          <label>Notas</label>
+          <textarea id="m_notas"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('manualModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarManual()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: ETIQUETAS POR ÍTEM ═══════════════════ -->
+<div class="overlay" id="printModal">
+  <div class="modal" style="width:min(960px,97vw);max-height:95vh">
+    <div class="modal-head">
+      <div class="modal-title">🏷 Etiquetas por Producto</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('printModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+
+      <!-- DOC INFO BAR -->
+      <div id="printDocInfo" style="padding:12px 20px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)">
+        Cargando...
+      </div>
+
+      <!-- SPLIT: items list + preview -->
+      <div style="display:grid;grid-template-columns:1fr 480px;min-height:420px;max-height:calc(95vh - 240px)">
+
+        <!-- LEFT: items table -->
+        <div style="overflow-y:auto;border-right:1px solid var(--border)">
+          <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Productos</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-secondary btn-sm" onclick="seleccionarTodos(true)">Todos</button>
+              <button class="btn btn-secondary btn-sm" onclick="seleccionarTodos(false)">Ninguno</button>
+              <button class="btn btn-secondary btn-sm" onclick="copiarPrecioVenta()">Copiar 1° precio</button>
+            </div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:var(--surface)">
+                <th style="padding:8px 10px;text-align:center;width:36px;color:var(--muted);font-size:10px;text-transform:uppercase">✓</th>
+                <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase">Código</th>
+                <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase">Descripción</th>
+                <th style="padding:8px 10px;text-align:center;color:var(--muted);font-size:10px;text-transform:uppercase">Cant</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase">Costo</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--success);font-size:10px;text-transform:uppercase;min-width:120px">Precio venta ▾</th>
+              </tr>
+            </thead>
+            <tbody id="printItemsBody"></tbody>
+          </table>
+        </div>
+
+        <!-- RIGHT: label preview -->
+        <div style="display:flex;flex-direction:column;background:var(--surface2);min-width:0">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px">
+            Preview etiqueta
+          </div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:12px;overflow:auto">
+            <div id="labelPreviewBox" style="background:#f5f5f5;border-radius:4px;max-width:100%;overflow:hidden;line-height:0;box-shadow:0 4px 16px rgba(0,0,0,0.4)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="450" height="250" style="font-family:Arial,sans-serif;background:#f5f5f5;display:block">
+                <text x="225" y="130" text-anchor="middle" font-size="12" fill="#888" font-family="Arial,sans-serif">Cargando productos...</text>
+              </svg>
+            </div>
+          </div>
+          <!-- ZPL toggle -->
+          <details style="padding:10px 14px;border-top:1px solid var(--border)">
+            <summary style="font-size:11px;color:var(--muted);cursor:pointer;user-select:none">Ver ZPL</summary>
+            <pre id="zplPreviewBox" style="margin-top:6px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:10px;color:#7ae787;line-height:1.5;max-height:150px;overflow:auto;white-space:pre"></pre>
+          </details>
+        </div>
+      </div>
+
+      <!-- BOTTOM: printer config + timestamp -->
+      <div style="padding:14px 20px;border-top:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <!-- Conexión -->
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="radio-opt selected" id="pi-opt-red" onclick="piSelectConn('red')" style="padding:7px 12px;flex:none">
+            <div class="radio-label" style="font-size:12px">🌐 Red</div>
+          </div>
+          <div class="radio-opt" id="pi-opt-usb" onclick="piSelectConn('usb')" style="padding:7px 12px;flex:none">
+            <div class="radio-label" style="font-size:12px">🔌 USB</div>
+          </div>
+        </div>
+        <div id="pi-net" style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="pi_ip" placeholder="IP impresora" style="width:140px;padding:7px 10px;font-size:12px">
+          <input type="text" id="pi_port" value="9100" style="width:60px;padding:7px 10px;font-size:12px">
+        </div>
+        <div id="pi-usb" style="display:none">
+          <input type="text" id="pi_com" placeholder="COM3 o /dev/usb/lp0" style="width:180px;padding:7px 10px;font-size:12px">
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+          <div id="tsDisplay" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
+          <div style="font-size:12px;color:var(--muted)" id="selectedCount">0 seleccionados</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('printModal')">Cancelar</button>
+      <button class="btn btn-primary" id="btnImprimir" onclick="imprimirItemsSeleccionados()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir seleccionados
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: CONFIGURAR IMPRESORA ═══════════════════ -->
+<div class="overlay" id="printerModal">
+  <div class="modal" style="width:min(420px,95vw)">
+    <div class="modal-head">
+      <div class="modal-title">⚙️ Configurar Impresora Zebra</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('printerModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Zebra ZD2824 Plus · Etiquetas 2.25" × 1.75" · 203 DPI</p>
+      <div class="radio-group" style="margin-bottom:16px">
+        <div class="radio-opt selected" id="cfg-opt-red" onclick="cfgConn('red')">
+          <div class="radio-label">🌐 Red TCP/IP</div><div class="radio-sub">Recomendado</div>
+        </div>
+        <div class="radio-opt" id="cfg-opt-usb" onclick="cfgConn('usb')">
+          <div class="radio-label">🔌 USB / COM</div><div class="radio-sub">Directo al PC</div>
+        </div>
+      </div>
+      <div id="cfgNet">
+        <div class="form-grid" style="grid-template-columns:3fr 1fr">
+          <div class="form-group"><label>IP impresora</label><input type="text" id="cfg_ip" placeholder="192.168.1.100"></div>
+          <div class="form-group"><label>Puerto</label><input type="text" id="cfg_port" value="9100"></div>
+        </div>
+      </div>
+      <div id="cfgUsb" style="display:none">
+        <div class="form-group"><label>Puerto COM</label><input type="text" id="cfg_com" placeholder="COM3"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('printerModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePrinterCfg()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: PROVEEDORES ═══════════════════ -->
+<div class="overlay" id="proveedoresModal">
+  <div class="modal" style="width:min(620px,95vw)">
+    <div class="modal-head">
+      <div class="modal-title">🏢 Proveedores</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('proveedoresModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <!-- Agregar nuevo -->
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-end">
+        <div class="form-group" style="margin:0;flex:1">
+          <label>Nombre del proveedor</label>
+          <input type="text" id="np_nombre" placeholder="NOMBRE PROVEEDOR"
+                 style="text-transform:uppercase" onkeydown="if(event.key==='Enter')agregarProveedor()">
+        </div>
+        <button class="btn btn-primary" onclick="agregarProveedor()" style="flex-shrink:0">
+          + Agregar
+        </button>
+      </div>
+      <!-- Lista -->
+      <div style="max-height:420px;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:var(--surface);position:sticky;top:0">
+              <th style="padding:10px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;width:100px">Código</th>
+              <th style="padding:10px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Proveedor</th>
+              <th style="padding:10px 16px;width:80px"></th>
+            </tr>
+          </thead>
+          <tbody id="proveedoresBody">
+            <tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted)">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('proveedoresModal')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+let currentFacId = null;
+let connMode = 'red';
+let printerCfg = JSON.parse(localStorage.getItem('zebraCfg') || '{"modo":"red","ip":"","puerto":9100,"port":"COM1"}');
+let tasaActiva = 1;
+let _lastParsedItems = [];  // ítems raw del último PDF parseado
+
+// ── Init ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  updatePrinterBadge();
+  setupDragDrop();
+  if (printerCfg.ip) document.getElementById('cfg_ip').value = printerCfg.ip;
+  document.getElementById('cfg_port').value = printerCfg.puerto || 9100;
+  if (printerCfg.port) document.getElementById('cfg_com').value = printerCfg.port;
+  // Cargar tasa guardada del servidor
+  fetch('/api/tasa').then(r => r.json()).then(d => {
+    tasaActiva = d.tasa || 1;
+    document.getElementById('tasaInput').value = tasaActiva;
+    actualizarTotalUSDDashboard();
+  });
+});
+
+// ── Tasa de cambio ────────────────────────────────────────────────────────
+function guardarTasa(val) {
+  const t = parseFloat(val);
+  if (!t || t <= 0) return;
+  tasaActiva = t;
+  fetch('/api/tasa', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({tasa: t})
+  }).then(() => {
+    actualizarTotalUSDDashboard();
+    toast(`Tasa actualizada: Bs ${t.toLocaleString('es-VE', {minimumFractionDigits:2})} / USD`, 'info');
+  });
+}
+
+function actualizarTotalUSDDashboard() {
+  fetch('/api/dashboard').then(r => r.json()).then(d => {
+    document.getElementById('sPendientes').textContent = d.pendientes;
+    document.getElementById('sVencidas').textContent   = d.vencidas;
+    document.getElementById('sPagadas').textContent    = d.pagadas;
+    document.getElementById('sTotal').innerHTML =
+      `${(d.total_pendiente||0).toLocaleString('es-VE',{maximumFractionDigits:0})} <span style="font-size:12px;font-weight:400;opacity:.7">VES</span>`;
+    const usdEl = document.getElementById('sTotalUsd');
+    if (d.total_pend_usd > 0)
+      usdEl.textContent = `$ ${d.total_pend_usd.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} USD`;
+    else
+      usdEl.textContent = '$ —';
+  });
+}
+
+// Calcula USD en tiempo real dentro del modal de carga
+function calcUSD() {
+  const tasa  = parseFloat(document.getElementById('f_tasa_cambio')?.value) || tasaActiva;
+  const calc  = (id, outId) => {
+    const v = parseFloat(document.getElementById(id)?.value) || 0;
+    const u = tasa > 0 ? v / tasa : 0;
+    const el = document.getElementById(outId);
+    if (el) el.value = u > 0 ? u.toFixed(4) : '';
+    return u;
+  };
+  calc('f_subtotal',  'f_subtotal_usd');
+  calc('f_monto_iva', 'f_monto_iva_usd');
+  const totalUsd = calc('f_total', 'f_total_usd');
+  const lbl = document.getElementById('f_total_usd_lbl');
+  if (lbl && totalUsd > 0)
+    lbl.textContent = `≈ $ ${totalUsd.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+}
+
+function calcUSDManual() {
+  const tasa  = parseFloat(document.getElementById('m_tasa_cambio')?.value) || 0;
+  const total = parseFloat(document.getElementById('m_total')?.value) || 0;
+  const usd   = tasa > 0 ? total / tasa : 0;
+  const el    = document.getElementById('m_total_usd');
+  const lbl   = document.getElementById('m_total_usd_lbl');
+  if (el)  el.value = usd > 0 ? usd.toFixed(4) : '';
+  if (lbl) lbl.textContent = usd > 0 ? `≈ $ ${usd.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '';
+}
+
+function updatePrinterBadge() {
+  const el = document.getElementById('printerStatus');
+  if (printerCfg.modo === 'red' && printerCfg.ip)
+    el.textContent = `Red: ${printerCfg.ip}:${printerCfg.puerto}`;
+  else if (printerCfg.modo === 'usb' && printerCfg.port)
+    el.textContent = `USB: ${printerCfg.port}`;
+  else el.textContent = 'Sin configurar';
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open') }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'uploadModal') resetUpload();
+}
+document.querySelectorAll('.overlay').forEach(o =>
+  o.addEventListener('click', e => { if (e.target === o) closeModal(o.id); }));
+
+function openUploadModal()  { openModal('uploadModal') }
+function openManualModal()  { openModal('manualModal') }
+function openPrinterConfig(){ openModal('printerModal') }
+
+// ── Drag & Drop ───────────────────────────────────────────────────────────
+function setupDragDrop() {
+  const z = document.getElementById('uploadZone');
+  if (!z) return;
+  z.addEventListener('dragover',  e => { e.preventDefault(); z.classList.add('drag') });
+  z.addEventListener('dragleave', () => z.classList.remove('drag'));
+  z.addEventListener('drop', e => { e.preventDefault(); z.classList.remove('drag'); if (e.dataTransfer?.files[0]) uploadPDF(e.dataTransfer.files[0]); });
+}
+
+function handleFileSelect(inp) { if (inp.files[0]) uploadPDF(inp.files[0]) }
+
+function uploadPDF(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) { toast('Solo se aceptan archivos PDF', 'error'); return; }
+  document.getElementById('uploadTitle').textContent = '📄 ' + file.name;
+  document.getElementById('progressWrap').style.display = 'block';
+  animateBar();
+
+  const fd = new FormData();
+  fd.append('pdf', file);
+  fetch('/cargar_pdf', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(res => {
+      if (!res.ok) { toast(res.error || 'Error procesando PDF', 'error'); stopBar(); return; }
+      fillForm(res.datos);
+    })
+    .catch(() => { toast('Error de conexión', 'error'); stopBar(); });
+}
+
+let barTimer;
+function animateBar() {
+  let w = 0;
+  const f = document.getElementById('progressFill');
+  barTimer = setInterval(() => { w = Math.min(w + Math.random()*10, 85); f.style.width = w+'%'; }, 120);
+}
+function stopBar() {
+  clearInterval(barTimer);
+  document.getElementById('progressFill').style.width = '0';
+  document.getElementById('progressWrap').style.display = 'none';
+}
+
+function fillForm(d) {
+  clearInterval(barTimer);
+  document.getElementById('progressFill').style.width = '100%';
+  setTimeout(() => {
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('extractedForm').style.display = 'block';
+    document.getElementById('saveExtracted').style.display = '';
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    set('f_empresa_propia', d.empresa_propia);
+    set('f_rif_propio',     d.rif_propio);
+    set('f_proveedor',      d.proveedor);
+    set('f_rif_proveedor',  d.rif_proveedor);
+    set('f_num_documento',  d.num_documento);
+    set('f_subtotal',       d.subtotal);
+    set('f_flete',          d.flete);
+    set('f_monto_iva',      d.monto_iva);
+    set('f_total',          d.total);
+    set('f_archivo_pdf',    d.archivo_pdf);
+    if (d.fecha) set('f_fecha', d.fecha);
+    if (d.tipo_doc) document.getElementById('f_tipo_doc').value = d.tipo_doc;
+    if (d.moneda)   document.getElementById('f_moneda').value   = d.moneda;
+    // Pre-rellenar tasa activa y calcular USD
+    const tasaEl = document.getElementById('f_tasa_cambio');
+    if (tasaEl && tasaActiva > 1) { tasaEl.value = tasaActiva; }
+    calcUSD();
+    if (d.raw_text) document.getElementById('rawText').textContent = d.raw_text.slice(0, 3000);
+
+    // Items
+    if (d.items && d.items.length) {
+      _lastParsedItems = d.items;
+      document.getElementById('itemsSection').style.display = 'block';
+      document.getElementById('itemsCount').textContent = d.items.length;
+      const tbody = document.getElementById('itemsBody');
+      tbody.innerHTML = d.items.map(it =>
+        `<tr><td>${it.codigo}</td><td>${it.descripcion}</td><td>${it.cantidad}</td>
+         <td>${it.precio_unit.toLocaleString('es-VE',{minimumFractionDigits:2})}</td>
+         <td>${it.total.toLocaleString('es-VE',{minimumFractionDigits:2})}</td></tr>`
+      ).join('');
+    }
+  }, 250);
+}
+
+function resetUpload() {
+  stopBar();
+  document.getElementById('uploadTitle').textContent = 'Arrastra el PDF o haz clic para seleccionar';
+  document.getElementById('extractedForm').style.display = 'none';
+  document.getElementById('saveExtracted').style.display = 'none';
+  document.getElementById('itemsSection').style.display = 'none';
+  document.getElementById('pdfInput').value = '';
+}
+
+// ── Guardar ───────────────────────────────────────────────────────────────
+function guardarExtraido() {
+  const g = id => document.getElementById(id)?.value || '';
+  const data = {
+    empresa_propia: g('f_empresa_propia'), rif_propio:    g('f_rif_propio'),
+    proveedor:      g('f_proveedor'),      rif_proveedor: g('f_rif_proveedor'),
+    tipo_doc:       g('f_tipo_doc'),       num_documento:  g('f_num_documento'),
+    fecha:          g('f_fecha'),          fecha_vence:    g('f_fecha_vence'),
+    subtotal:       g('f_subtotal'),       flete:          g('f_flete'),
+    monto_iva:      g('f_monto_iva'),      total:          g('f_total'),
+    tasa_cambio:    parseFloat(g('f_tasa_cambio')) || tasaActiva || 1,
+    moneda:         g('f_moneda'),         estado:         g('f_estado'),
+    notas:          g('f_notas'),          archivo_pdf:    g('f_archivo_pdf'),
+    items:          _lastParsedItems,
+  };
+  if (!data.proveedor || !data.num_documento) { toast('Proveedor y N° Documento son obligatorios', 'error'); return; }
+  postDoc(data);
+}
+
+function guardarManual() {
+  const g = id => document.getElementById(id)?.value || '';
+  const data = {
+    empresa_propia: g('m_empresa_propia'), rif_propio:    g('m_rif_propio'),
+    proveedor:      g('m_proveedor'),      rif_proveedor: g('m_rif_proveedor'),
+    tipo_doc:       g('m_tipo_doc'),       num_documento:  g('m_num_documento'),
+    fecha:          g('m_fecha'),          fecha_vence:    g('m_fecha_vence'),
+    subtotal:       g('m_subtotal'),       monto_iva:      g('m_monto_iva'),
+    total:          g('m_total'),          tasa_cambio:    parseFloat(g('m_tasa_cambio')) || tasaActiva || 1,
+    moneda:         g('m_moneda'),         estado:         g('m_estado'),
+    notas:          g('m_notas'),
+  };
+  if (!data.proveedor || !data.num_documento) { toast('Proveedor y N° Documento son obligatorios', 'error'); return; }
+  postDoc(data);
+}
+
+function postDoc(data) {
+  fetch('/guardar_factura', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+  }).then(r => r.json()).then(res => {
+    if (res.ok) {
+      const nItems = (data.items || []).length;
+      const msg = nItems > 0
+        ? `Documento guardado ✓ — ${nItems} producto(s) guardados`
+        : `Documento guardado ✓ — sin productos (usa "Reimportar desde PDF" al imprimir)`;
+      toast(msg, nItems > 0 ? 'success' : 'info');
+      _lastParsedItems = [];
+      setTimeout(() => location.reload(), 900);
+    } else toast(res.error || 'Error al guardar', 'error');
+  });
+}
+
+// ── Acciones tabla ────────────────────────────────────────────────────────
+function marcarPagado(id, btn) {
+  fetch(`/actualizar_estado/${id}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({estado:'pagado'})
+  }).then(r => r.json()).then(res => {
+    if (res.ok) {
+      const row = btn.closest('tr');
+      row.querySelector('.badge').outerHTML = '<span class="badge badge-paid">Pagado</span>';
+      row.dataset.estado = 'pagado';
+      btn.remove();
+      toast('Marcado como pagado', 'success');
+      refreshStats();
+    }
+  });
+}
+
+function eliminarDoc(id, btn) {
+  if (!confirm('¿Eliminar este documento?')) return;
+  fetch(`/eliminar_factura/${id}`, {method:'DELETE'})
+    .then(r => r.json()).then(res => {
+      if (res.ok) { btn.closest('tr').remove(); toast('Documento eliminado', 'info'); refreshStats(); }
+    });
+}
+
+function refreshStats() {
+  actualizarTotalUSDDashboard();
+}
+
+// ── Filtro y búsqueda ─────────────────────────────────────────────────────
+let currentFilter = 'todos';
+function setFilter(estado, btn) {
+  currentFilter = estado;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterTable();
+}
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  document.querySelectorAll('#facturasBody tr').forEach(tr => {
+    const okEst = currentFilter === 'todos' || tr.dataset.estado === currentFilter;
+    const okSrc = !q || tr.dataset.search.includes(q);
+    tr.style.display = okEst && okSrc ? '' : 'none';
+  });
+}
+
+// ── Print modal — etiquetas por ítem ─────────────────────────────────────
+let printFacData   = null;   // factura completa
+let printItemsData = [];     // ítems del documento
+let piConnMode     = 'red';
+let previewItemIdx = null;
+
+function openPrintModal(id) {
+  currentFacId = id;
+  document.getElementById('printDocInfo').textContent = 'Cargando ítems...';
+  document.getElementById('printItemsBody').innerHTML = '';
+  document.getElementById('labelPreviewBox').innerHTML =
+    '<div style="font-size:8px;color:#888;text-align:center;padding:20px 0">← Haz clic en una fila</div>';
+  document.getElementById('zplPreviewBox').textContent = '';
+  document.getElementById('tsDisplay').textContent = '';
+
+  // Pre-fill printer from saved config
+  if (printerCfg.ip)   document.getElementById('pi_ip').value   = printerCfg.ip;
+  document.getElementById('pi_port').value = printerCfg.puerto || 9100;
+  if (printerCfg.port) document.getElementById('pi_com').value  = printerCfg.port;
+
+  fetch(`/api/factura/${id}/items`)
+    .then(r => r.json())
+    .then(res => {
+      if (res.error) { toast(res.error, 'error'); return; }
+      printFacData   = res.factura;
+      printItemsData = res.items;
+
+      const f = res.factura;
+      document.getElementById('printDocInfo').innerHTML =
+        `<strong>${f.empresa_propia || ''}</strong> &nbsp;·&nbsp; ` +
+        `Proveedor: <strong>${f.proveedor}</strong> &nbsp;·&nbsp; ` +
+        `${f.tipo_doc} <strong>#${f.num_documento}</strong> &nbsp;·&nbsp; ` +
+        `${f.fecha || ''} &nbsp;·&nbsp; ` +
+        `<span style="color:var(--accent)">${f.moneda} ${Number(f.total||0).toLocaleString('es-VE',{minimumFractionDigits:2})}</span>` +
+        (f.tasa_cambio > 1 ? ` &nbsp;·&nbsp; <span style="color:var(--success)">$ ${Number(f.total_usd||0).toLocaleString('en-US',{minimumFractionDigits:2})}</span>` : '');
+
+      renderPrintItems();
+      openModal('printModal');
+    })
+    .catch(() => toast('Error cargando ítems', 'error'));
+}
+
+function renderPrintItems() {
+  const tbody = document.getElementById('printItemsBody');
+  const mon   = printFacData?.moneda || 'VES';
+
+  if (!printItemsData.length) {
+    tbody.innerHTML = `
+      <tr><td colspan="6" style="padding:40px 20px;text-align:center">
+        <div style="font-size:32px;margin-bottom:12px">📦</div>
+        <div style="color:var(--text);font-size:14px;font-weight:600;margin-bottom:6px">
+          Sin productos guardados
+        </div>
+        <div style="color:var(--muted);font-size:12px;margin-bottom:24px">
+          Selecciona el PDF de A2 Softway de este documento para extraer los productos
+        </div>
+        <label class="btn btn-primary" style="cursor:pointer;font-size:14px;padding:10px 24px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Seleccionar PDF del documento
+          <input type="file" accept=".pdf" style="display:none" onchange="reimportarDesdeNuevoPDF(this)">
+        </label>
+        <div id="reimportProgress" style="display:none;margin-top:16px;font-size:12px;color:var(--accent)">
+          ⏳ Extrayendo productos del PDF...
+        </div>
+        <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+          <button class="btn btn-secondary btn-sm" onclick="mostrarEditorManual()" style="font-size:12px">
+            ✏ Ingresar productos manualmente
+          </button>
+        </div>
+        <div id="editorManualItems" style="display:none;margin-top:16px;text-align:left;max-width:560px;margin-left:auto;margin-right:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:var(--surface2)">
+                <th style="padding:7px 8px;color:var(--muted);font-size:10px;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--border)">Código</th>
+                <th style="padding:7px 8px;color:var(--muted);font-size:10px;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--border)">Descripción</th>
+                <th style="padding:7px 8px;color:var(--muted);font-size:10px;text-transform:uppercase;width:56px;text-align:center;border-bottom:1px solid var(--border)">Cant</th>
+                <th style="padding:7px 8px;color:var(--muted);font-size:10px;text-transform:uppercase;width:110px;text-align:right;border-bottom:1px solid var(--border)">Costo</th>
+                <th style="padding:7px 8px;width:28px;border-bottom:1px solid var(--border)"></th>
+              </tr>
+            </thead>
+            <tbody id="manualItemsBody">
+              <tr class="manual-item-row">
+                <td style="padding:4px"><input type="text" placeholder="COD001" class="mi-cod" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px;font-family:var(--mono)"></td>
+                <td style="padding:4px"><input type="text" placeholder="Descripción" class="mi-desc" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px"></td>
+                <td style="padding:4px"><input type="number" min="1" value="1" class="mi-cant" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px;text-align:center"></td>
+                <td style="padding:4px"><input type="number" step="0.01" placeholder="0.00" class="mi-costo" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px;text-align:right"></td>
+                <td style="padding:4px;text-align:center"><button onclick="eliminarFilaManual(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px">×</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-secondary btn-sm" onclick="agregarFilaManual()">+ Fila</button>
+            <button class="btn btn-primary btn-sm" onclick="guardarItemsManuales()">Guardar productos</button>
+          </div>
+        </div>
+      </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = printItemsData.map((it, i) => {
+    const costo = Number(it.precio_unit||0).toLocaleString('es-VE',{minimumFractionDigits:2});
+    return `
+    <tr id="prow-${i}" onclick="previewItem(${i})"
+        style="cursor:pointer;transition:background 0.1s"
+        onmouseover="this.style.background='rgba(255,255,255,0.04)'"
+        onmouseout="this.style.background=previewItemIdx===${i}?'rgba(240,180,41,0.08)':''">
+      <td style="padding:8px 10px;text-align:center">
+        <input type="checkbox" class="item-chk" data-idx="${i}" checked
+               onchange="updateSelectedCount()" onclick="event.stopPropagation()">
+      </td>
+      <td style="padding:8px 10px;font-family:var(--mono);font-size:11px;color:var(--accent)">${it.codigo||'—'}</td>
+      <td style="padding:8px 10px;font-size:12px;max-width:200px">${it.descripcion||'—'}</td>
+      <td style="padding:8px 10px;text-align:center;font-family:var(--mono)">
+        <input type="number" min="1" value="${it.cantidad}" class="qty-input" data-idx="${i}"
+               oninput="onCantidadChange(${i})" onclick="event.stopPropagation()"
+               style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+                      padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;
+                      width:56px;text-align:center;outline:none"
+               title="Copias a imprimir (por defecto = cantidad comprada)">
+      </td>
+      <td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted)">${mon} ${costo}</td>
+      <td style="padding:6px 10px;text-align:right">
+        <input type="number" step="0.01" min="0" class="pv-input" data-idx="${i}"
+               placeholder="0.00" oninput="onPrecioVentaChange(${i})" onclick="event.stopPropagation()"
+               style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+                      padding:5px 8px;color:var(--success);font-family:var(--mono);font-size:12px;
+                      font-weight:600;width:110px;text-align:right;outline:none"
+               onfocus="this.style.borderColor='var(--success)'" onblur="this.style.borderColor='var(--border)'">
+      </td>
+    </tr>`;
+  }).join('');
+  updateSelectedCount();
+  // Auto-previsualizar el primer ítem al cargar
+  if (printItemsData.length > 0) {
+    setTimeout(() => previewItem(0), 80);
+  }
+}
+
+function onPrecioVentaChange(idx) {
+  if (previewItemIdx === idx) previewItem(idx);
+}
+
+function onCantidadChange(idx) {
+  updateSelectedCount();
+  if (previewItemIdx === idx) previewItem(idx);
+}
+
+function previewItem(idx) {
+  // Highlight fila seleccionada
+  document.querySelectorAll('#printItemsBody tr').forEach((tr, i) => {
+    tr.style.background = i === idx ? 'rgba(240,180,41,0.08)' : '';
+  });
+  previewItemIdx = idx;
+
+  const item     = printItemsData[idx];
+  const pvInput  = document.querySelector(`.pv-input[data-idx="${idx}"]`);
+  const qtyInput = document.querySelector(`.qty-input[data-idx="${idx}"]`);
+  const pv       = parseFloat(pvInput?.value)  || 0;
+  const cant     = parseInt(qtyInput?.value)   || item.cantidad || 1;
+  const ts      = Math.floor(Date.now() / 1000);
+  const mon     = printFacData?.moneda || 'VES';
+  const empresa = (printFacData?.empresa_propia || '').slice(0, 30);
+  const codigo  = (item.codigo  || '').slice(0, 16);
+  const desc    = (item.descripcion || '').slice(0, 34);
+  const costo   = Number(item.precio_unit || 0).toLocaleString('es-VE', {minimumFractionDigits:2});
+  const pvStr   = pv > 0 ? Number(pv).toLocaleString('es-VE', {minimumFractionDigits:2}) : '0,00';
+  const dt      = new Date(ts * 1000);
+  const tsStr   = dt.toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  const bc      = (item.codigo || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 14) || 'PROD';
+
+  // Timestamp display
+  document.getElementById('tsDisplay').textContent = `TS: ${ts}  ·  ${tsStr}`;
+
+  // SVG preview — mismo layout que la etiqueta real (450×250 px)
+  const W = 450, H = 250;
+  const tasa   = parseFloat(printFacData?.tasa_cambio) || 1;
+  const pvUSD  = pv > 0 ? parseFloat(pv).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '0.00';
+  const ref    = (printFacData?.referencia || printFacData?.num_documento || '').slice(0, 24);
+  const barsSVG = generarBarrasSVG(bc, 178, 44, 420, 16);
+
+  const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="background:#fff;display:block">
+
+    <!-- Borde -->
+    <rect x="2" y="2" width="${W-4}" height="${H-4}" rx="3" fill="white" stroke="#222" stroke-width="2"/>
+
+    <!-- Código -->
+    <text x="10" y="34" font-size="22" fill="#111" font-weight="bold"
+          font-family="'Courier New',monospace">${esc(codigo)}</text>
+
+    <!-- Descripción -->
+    <text x="10" y="58" font-size="15" fill="#444"
+          font-family="Arial,sans-serif">${esc(desc)}</text>
+
+    <!-- Línea -->
+    <line x1="8" y1="68" x2="${W-8}" y2="68" stroke="#ddd" stroke-width="1"/>
+
+    <!-- Precio USD (muy grande) -->
+    <text x="10" y="122" font-size="40" fill="#000" font-weight="bold"
+          font-family="Arial,sans-serif">$ ${esc(pvUSD)}</text>
+
+    <!-- Línea -->
+    <line x1="8" y1="132" x2="${W-8}" y2="132" stroke="#ddd" stroke-width="1"/>
+
+    <!-- Referencia proveedor-factura + timestamp -->
+    <text x="10" y="152" font-size="14" fill="#333" font-weight="600"
+          font-family="'Courier New',monospace">${esc(ref)}</text>
+    <text x="${W-10}" y="152" font-size="12" fill="#888" text-anchor="end"
+          font-family="'Courier New',monospace">${ts}</text>
+
+    <!-- Línea -->
+    <line x1="8" y1="162" x2="${W-8}" y2="162" stroke="#ddd" stroke-width="1"/>
+
+    <!-- Barcode -->
+    ${barsSVG}
+    <text x="${W/2}" y="${H-6}" font-size="9" fill="#333" text-anchor="middle"
+          font-family="'Courier New',monospace" letter-spacing="2">${esc(bc)}</text>
+  </svg>`;
+
+  document.getElementById('labelPreviewBox').innerHTML = svg;
+
+  // ZPL generado en el cliente sin necesitar servidor
+  const zpl = generarZPLCliente(item, printFacData, pv, ts);
+  document.getElementById('zplPreviewBox').textContent = zpl;
+}
+
+// ── Generador de ZPL en el cliente (igual al del servidor) ───────────────────
+function generarZPLCliente(item, factura, precioVenta, ts) {
+  const trunc  = (s, n) => String(s||'').slice(0, n);
+  const codigo = trunc(item.codigo, 20);
+  const desc   = trunc(item.descripcion, 32);
+  const cant   = parseInt(document.querySelector(`.qty-input[data-idx="${previewItemIdx}"]`)?.value) || item.cantidad || 1;
+  const pvUSD  = parseFloat(precioVenta||0).toFixed(2);
+  const ref    = trunc(factura?.referencia || factura?.num_documento || '', 24);
+  const bc     = (item.codigo||'').replace(/[^A-Z0-9]/gi,'').toUpperCase() || 'PROD';
+
+  return [
+    '^XA',
+    '^PW457', '^LL254',
+    `^PQ${cant}`,
+    '^FO4,4^GB449,246,2^FS',
+    `^CF0,28\n^FO10,12^FD${codigo}^FS`,
+    `^CF0,20\n^FO10,46^FD${desc}^FS`,
+    '^FO4,72^GB449,0,1^FS',
+    `^CF0,48\n^FO10,80^FD$ ${pvUSD}^FS`,
+    '^FO4,136^GB449,0,1^FS',
+    `^CF0,18\n^FO10,142^FD${ref}^FS`,
+    `^CF0,16\n^FO280,142^FD${ts}^FS`,
+    '^FO4,166^GB449,0,1^FS',
+    `^BY1,3,36\n^FO10,170^BCN,36,N,N^FD${bc}^FS`,
+    '^XZ'
+  ].join('\n');
+}
+
+// ── Simulador visual de barras Code128 ───────────────────────────────────────
+function generarBarrasSVG(texto, y, height, maxW, startX) {
+  // Genera barras pseudoaleatorias pero deterministas basadas en el texto
+  let hash = 0;
+  for (let i = 0; i < texto.length; i++) hash = ((hash << 5) - hash) + texto.charCodeAt(i);
+  const seed = Math.abs(hash);
+
+  let bars = '';
+  let x = startX;
+  const totalBars = 60;
+  const barW = Math.floor(maxW / totalBars);
+
+  // Barras de inicio fijas
+  bars += `<rect x="${x}" y="${y}" width="2" height="${height}" fill="#000"/>`;   x += 3;
+  bars += `<rect x="${x}" y="${y}" width="1" height="${height}" fill="#000"/>`;   x += 2;
+  bars += `<rect x="${x}" y="${y}" width="2" height="${height}" fill="#000"/>`;   x += 3;
+
+  // Barras de datos
+  let s = seed;
+  for (let i = 0; i < totalBars - 6; i++) {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    const w = (Math.abs(s) % 3) + 1;
+    const color = i % 2 === 0 ? '#000' : '#fff';
+    bars += `<rect x="${x}" y="${y}" width="${w}" height="${height}" fill="${color}"/>`;
+    x += w + 1;
+    if (x > startX + maxW - 12) break;
+  }
+
+  // Barras de fin fijas
+  bars += `<rect x="${x}" y="${y}" width="2" height="${height}" fill="#000"/>`;   x += 3;
+  bars += `<rect x="${x}" y="${y}" width="1" height="${height}" fill="#000"/>`;   x += 2;
+  bars += `<rect x="${x}" y="${y}" width="2" height="${height}" fill="#000"/>`;
+
+  return bars;
+}
+
+// Escapa caracteres especiales para SVG
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function seleccionarTodos(sel) {
+  document.querySelectorAll('.item-chk').forEach(c => c.checked = sel);
+  updateSelectedCount();
+}
+
+function copiarPrecioVenta() {
+  const inputs = document.querySelectorAll('.pv-input');
+  if (!inputs.length) return;
+  const primero = inputs[0].value;
+  if (!primero) { toast('Ingresa el precio en la primera fila primero', 'info'); return; }
+  inputs.forEach(inp => { if (!inp.value) inp.value = primero; });
+  toast('Precio copiado a ítems sin precio', 'info');
+}
+
+function updateSelectedCount() {
+  const checked  = document.querySelectorAll('.item-chk:checked');
+  const qtyInputs = document.querySelectorAll('.qty-input');
+  let totalEtiquetas = 0;
+  checked.forEach(c => {
+    const idx = parseInt(c.dataset.idx);
+    const qty = parseInt(qtyInputs[idx]?.value) || printItemsData[idx]?.cantidad || 1;
+    totalEtiquetas += qty;
+  });
+  const total = checked.length;
+  document.getElementById('selectedCount').textContent =
+    `${total} producto${total!==1?'s':''} · ${totalEtiquetas} etiqueta${totalEtiquetas!==1?'s':''}`;
+  document.getElementById('btnImprimir').disabled = total === 0;
+}
+
+function reimportarItemsPDF() {
+  const btn = document.getElementById('btnReimportar');
+  if (btn) { btn.textContent = 'Reimportando...'; btn.disabled = true; }
+  document.getElementById('reimportProgress').style.display = 'block';
+  fetch(`/api/factura/${currentFacId}/reimportar_items`, { method: 'POST' })
+    .then(r => r.json())
+    .then(res => {
+      document.getElementById('reimportProgress').style.display = 'none';
+      if (res.ok) {
+        toast(`✅ ${res.mensaje}`, 'success');
+        fetch(`/api/factura/${currentFacId}/items`)
+          .then(r => r.json())
+          .then(d => { printItemsData = d.items; renderPrintItems(); });
+      } else {
+        toast('❌ ' + res.error, 'error');
+        if (btn) { btn.textContent = 'Reimportar desde PDF guardado'; btn.disabled = false; }
+      }
+    })
+    .catch(() => {
+      toast('Error de conexión', 'error');
+      if (btn) { btn.disabled = false; }
+      document.getElementById('reimportProgress').style.display = 'none';
+    });
+}
+
+function reimportarDesdeNuevoPDF(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const prog = document.getElementById('reimportProgress');
+  if (prog) prog.style.display = 'block';
+
+  // Primero subir el PDF al servidor y asociarlo a esta factura
+  const fd = new FormData();
+  fd.append('pdf', file);
+  fd.append('factura_id', currentFacId);
+  fetch('/api/upload_y_reimportar', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(res => {
+      if (prog) prog.style.display = 'none';
+      if (res.ok) {
+        toast(`✅ ${res.mensaje}`, 'success');
+        fetch(`/api/factura/${currentFacId}/items`)
+          .then(r => r.json())
+          .then(d => { printItemsData = d.items; renderPrintItems(); });
+      } else {
+        toast('❌ ' + (res.error || 'Error al procesar PDF'), 'error');
+      }
+    })
+    .catch(() => { if (prog) prog.style.display = 'none'; toast('Error de conexión', 'error'); });
+}
+
+function mostrarEditorManual() {
+  const ed = document.getElementById('editorManualItems');
+  if (ed) ed.style.display = ed.style.display === 'none' ? '' : 'none';
+}
+
+function agregarFilaManual() {
+  const tbody = document.getElementById('manualItemsBody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.className = 'manual-item-row';
+  tr.innerHTML = `
+    <td style="padding:4px"><input type="text" placeholder="COD001" class="mi-cod" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px;font-family:var(--mono)"></td>
+    <td style="padding:4px"><input type="text" placeholder="Descripción" class="mi-desc" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px"></td>
+    <td style="padding:4px"><input type="number" min="1" value="1" class="mi-cant" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px;text-align:center"></td>
+    <td style="padding:4px"><input type="number" step="0.01" placeholder="0.00" class="mi-costo" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-size:12px;text-align:right"></td>
+    <td style="padding:4px;text-align:center"><button onclick="eliminarFilaManual(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:15px">×</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function eliminarFilaManual(btn) {
+  const row = btn.closest('tr');
+  const tbody = document.getElementById('manualItemsBody');
+  if (tbody && tbody.querySelectorAll('tr').length > 1) row.remove();
+}
+
+function guardarItemsManuales() {
+  const rows = document.querySelectorAll('.manual-item-row');
+  const items = [];
+  rows.forEach(tr => {
+    const cod   = tr.querySelector('.mi-cod')?.value.trim();
+    const desc  = tr.querySelector('.mi-desc')?.value.trim();
+    const cant  = parseInt(tr.querySelector('.mi-cant')?.value) || 1;
+    const costo = parseFloat(tr.querySelector('.mi-costo')?.value) || 0;
+    if (cod || desc) items.push({ codigo: cod, descripcion: desc, cantidad: cant, precio_unit: costo, total: costo * cant });
+  });
+  if (!items.length) { toast('Agrega al menos un ítem', 'error'); return; }
+  fetch(`/api/factura/${currentFacId}/guardar_items`, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ items })
+  }).then(r => r.json()).then(res => {
+    if (res.ok) {
+      toast(`✅ ${res.items} ítem(s) guardados`, 'success');
+      fetch(`/api/factura/${currentFacId}/items`)
+        .then(r => r.json())
+        .then(d => { printItemsData = d.items; renderPrintItems(); });
+    } else toast('❌ ' + (res.error || 'Error'), 'error');
+  });
+}
+
+function piSelectConn(modo) {
+  piConnMode = modo;
+  document.getElementById('pi-opt-red').classList.toggle('selected', modo==='red');
+  document.getElementById('pi-opt-usb').classList.toggle('selected', modo==='usb');
+  document.getElementById('pi-net').style.display = modo==='red' ? '' : 'none';
+  document.getElementById('pi-usb').style.display = modo==='usb' ? '' : 'none';
+}
+
+function imprimirItemsSeleccionados() {
+  const selIdx = [...document.querySelectorAll('.item-chk:checked')].map(c => parseInt(c.dataset.idx));
+  if (!selIdx.length) { toast('Selecciona al menos un producto', 'error'); return; }
+
+  const pvInputs  = document.querySelectorAll('.pv-input');
+  const qtyInputs = document.querySelectorAll('.qty-input');
+  const itemsCfg  = selIdx.map(i => {
+    const pv  = parseFloat(pvInputs[i]?.value)  || 0;
+    const qty = parseInt(qtyInputs[i]?.value)   || printItemsData[i].cantidad || 1;
+    // Pasar cantidad editable al ítem para que el servidor use ^PQ correcto
+    return { item: { ...printItemsData[i], cantidad: qty }, precio_venta: pv };
+  });
+
+  const sinPrecio = itemsCfg.filter(ic => ic.precio_venta <= 0);
+  if (sinPrecio.length) {
+    if (!confirm(`${sinPrecio.length} producto(s) sin precio de venta. ¿Continuar de todas formas?`)) return;
+  }
+
+  const printer = piConnMode === 'red'
+    ? { modo:'red', ip: document.getElementById('pi_ip').value.trim(), puerto: parseInt(document.getElementById('pi_port').value)||9100 }
+    : { modo:'usb', port: document.getElementById('pi_com').value.trim() };
+
+  if (piConnMode === 'red' && !printer.ip) { toast('Ingresa la IP de la impresora', 'error'); return; }
+
+  document.getElementById('btnImprimir').textContent = 'Enviando...';
+  document.getElementById('btnImprimir').disabled = true;
+
+  fetch('/imprimir_items', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ factura: printFacData, items: itemsCfg, printer })
+  }).then(r => r.json()).then(res => {
+    if (res.ok) {
+      toast(`✅ ${res.total_etiquetas} etiqueta(s) enviadas · TS: ${res.timestamp}`, 'success');
+      closeModal('printModal');
+    } else {
+      toast('❌ ' + res.mensaje, 'error');
+    }
+  }).finally(() => {
+    document.getElementById('btnImprimir').textContent = 'Imprimir seleccionados';
+    document.getElementById('btnImprimir').disabled = false;
+  });
+}
+
+// ── Proveedores ───────────────────────────────────────────────────────────
+let proveedoresList = [];
+
+function openProveedoresModal() {
+  openModal('proveedoresModal');
+  cargarProveedores();
+}
+
+function cargarProveedores() {
+  fetch('/api/proveedores').then(r => r.json()).then(data => {
+    proveedoresList = data;
+    const tbody = document.getElementById('proveedoresBody');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--muted)">Sin proveedores</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(p => `
+      <tr id="prov-row-${p.id}" style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px 16px">
+          <span id="prov-cod-${p.id}" class="td-mono" style="font-size:15px;font-weight:700;color:var(--accent);letter-spacing:2px">${p.codigo}</span>
+          <input id="prov-cod-edit-${p.id}" type="text" maxlength="4" value="${p.codigo}"
+                 style="display:none;font-family:var(--mono);font-size:15px;font-weight:700;color:var(--accent);
+                        width:60px;text-align:center;letter-spacing:2px;background:var(--surface2);
+                        border:1px solid var(--accent);border-radius:4px;padding:3px">
+        </td>
+        <td style="padding:10px 16px">
+          <span id="prov-nom-${p.id}">${p.nombre}</span>
+          <input id="prov-nom-edit-${p.id}" type="text" value="${p.nombre}"
+                 style="display:none;width:100%;background:var(--surface2);border:1px solid var(--accent);
+                        border-radius:4px;padding:4px 8px;color:var(--text);text-transform:uppercase">
+        </td>
+        <td style="padding:8px 16px;text-align:right">
+          <div id="prov-btns-${p.id}" style="display:flex;gap:5px;justify-content:flex-end">
+            <button class="btn btn-secondary btn-sm btn-icon" title="Editar" onclick="editarProveedor(${p.id})">✏</button>
+            <button class="btn btn-danger btn-sm btn-icon" title="Eliminar" onclick="eliminarProveedor(${p.id})">×</button>
+          </div>
+          <div id="prov-edit-btns-${p.id}" style="display:none;gap:5px;justify-content:flex-end">
+            <button class="btn btn-success btn-sm" onclick="guardarProveedorEdit(${p.id})">✓</button>
+            <button class="btn btn-secondary btn-sm" onclick="cancelarProveedorEdit(${p.id})">✕</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  });
+}
+
+function agregarProveedor() {
+  const nombre = document.getElementById('np_nombre').value.trim().toUpperCase();
+  if (!nombre) { toast('Escribe el nombre del proveedor', 'error'); return; }
+  fetch('/api/proveedores', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({nombre})
+  }).then(r => r.json()).then(res => {
+    if (res.ok) {
+      document.getElementById('np_nombre').value = '';
+      cargarProveedores();
+      toast(`✅ Proveedor agregado — código asignado: ${res.codigo}`, 'success');
+    } else toast('❌ ' + res.error, 'error');
+  });
+}
+
+function editarProveedor(id) {
+  document.getElementById(`prov-cod-${id}`).style.display      = 'none';
+  document.getElementById(`prov-nom-${id}`).style.display      = 'none';
+  document.getElementById(`prov-cod-edit-${id}`).style.display = '';
+  document.getElementById(`prov-nom-edit-${id}`).style.display = '';
+  document.getElementById(`prov-btns-${id}`).style.display      = 'none';
+  document.getElementById(`prov-edit-btns-${id}`).style.display = 'flex';
+}
+
+function cancelarProveedorEdit(id) {
+  document.getElementById(`prov-cod-${id}`).style.display      = '';
+  document.getElementById(`prov-nom-${id}`).style.display      = '';
+  document.getElementById(`prov-cod-edit-${id}`).style.display = 'none';
+  document.getElementById(`prov-nom-edit-${id}`).style.display = 'none';
+  document.getElementById(`prov-btns-${id}`).style.display      = 'flex';
+  document.getElementById(`prov-edit-btns-${id}`).style.display = 'none';
+}
+
+function guardarProveedorEdit(id) {
+  const codigo = document.getElementById(`prov-cod-edit-${id}`).value.trim();
+  const nombre = document.getElementById(`prov-nom-edit-${id}`).value.trim().toUpperCase();
+  fetch(`/api/proveedores/${id}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({codigo, nombre})
+  }).then(r => r.json()).then(res => {
+    if (res.ok) { cargarProveedores(); toast('Proveedor actualizado', 'success'); }
+    else toast('❌ ' + res.error, 'error');
+  });
+}
+
+function eliminarProveedor(id) {
+  if (!confirm('¿Eliminar este proveedor?')) return;
+  fetch(`/api/proveedores/${id}`, {method:'DELETE'})
+    .then(r => r.json()).then(res => {
+      if (res.ok) { cargarProveedores(); toast('Proveedor eliminado', 'info'); }
+    });
+}
+
+// Autocompletado: al cargar proveedores, construir datalist para el campo proveedor
+function construirDatalistProveedores() {
+  let dl = document.getElementById('dl-proveedores');
+  if (!dl) { dl = document.createElement('datalist'); dl.id = 'dl-proveedores'; document.body.appendChild(dl); }
+  dl.innerHTML = proveedoresList.map(p => `<option value="${p.nombre}">${p.codigo} — ${p.nombre}</option>`).join('');
+}
+
+// Cargar lista al inicio para el datalist
+fetch('/api/proveedores').then(r => r.json()).then(data => {
+  proveedoresList = data;
+  construirDatalistProveedores();
+  // Vincular datalist a campos de proveedor
+  const campos = ['f_proveedor', 'm_proveedor'];
+  campos.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.setAttribute('list', 'dl-proveedores');
+  });
+});
+
+// ── Printer config modal ──────────────────────────────────────────────────
+function cfgConn(modo) {
+  printerCfg.modo = modo;
+  document.getElementById('cfg-opt-red').classList.toggle('selected', modo==='red');
+  document.getElementById('cfg-opt-usb').classList.toggle('selected', modo==='usb');
+  document.getElementById('cfgNet').style.display = modo==='red' ? '' : 'none';
+  document.getElementById('cfgUsb').style.display = modo==='usb' ? '' : 'none';
+}
+
+function savePrinterCfg() {
+  printerCfg.ip     = document.getElementById('cfg_ip').value;
+  printerCfg.puerto = parseInt(document.getElementById('cfg_port').value) || 9100;
+  printerCfg.port   = document.getElementById('cfg_com').value;
+  localStorage.setItem('zebraCfg', JSON.stringify(printerCfg));
+  updatePrinterBadge();
+  closeModal('printerModal');
+  toast('Configuración de impresora guardada', 'success');
+}
+
+// ── Toasts ────────────────────────────────────────────────────────────────
+function toast(msg, type='info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'all 0.3s';
+    t.style.opacity = '0';
+    t.style.transform = 'translateY(8px)';
+    setTimeout(() => t.remove(), 300);
+  }, 3500);
+}
+</script>
+</body>
+</html>
