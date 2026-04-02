@@ -594,7 +594,7 @@ select option{background:var(--surface2)}
                 <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase">Código</th>
                 <th style="padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase">Descripción</th>
                 <th style="padding:8px 10px;text-align:center;color:var(--muted);font-size:10px;text-transform:uppercase">Cant</th>
-                <th style="padding:8px 10px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase">Costo</th>
+                <th style="padding:8px 10px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase">Costo USD</th>
                 <th style="padding:8px 10px;text-align:right;color:var(--success);font-size:10px;text-transform:uppercase;min-width:120px">Precio venta ▾</th>
               </tr>
             </thead>
@@ -1217,8 +1217,9 @@ function renderPrintItems() {
     return;
   }
 
+  const tasa = parseFloat(printFacData?.tasa_cambio) || 1;
   tbody.innerHTML = printItemsData.map((it, i) => {
-    const costo = Number(it.precio_unit||0).toLocaleString('es-VE',{minimumFractionDigits:2});
+    const costoUSD = (Number(it.precio_unit||0) / tasa).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
     return `
     <tr id="prow-${i}" onclick="previewItem(${i})"
         style="cursor:pointer;transition:background 0.1s"
@@ -1238,10 +1239,11 @@ function renderPrintItems() {
                       width:56px;text-align:center;outline:none"
                title="Copias a imprimir (por defecto = cantidad comprada)">
       </td>
-      <td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted)">${mon} ${costo}</td>
+      <td style="padding:8px 10px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted)">$ ${costoUSD}</td>
       <td style="padding:6px 10px;text-align:right">
         <input type="number" step="0.01" min="0" class="pv-input" data-idx="${i}"
                placeholder="0.00" oninput="onPrecioVentaChange(${i})" onclick="event.stopPropagation()"
+               onkeydown="pvEnter(event,${i})"
                style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;
                       padding:5px 8px;color:var(--success);font-family:var(--mono);font-size:12px;
                       font-weight:600;width:110px;text-align:right;outline:none"
@@ -1258,6 +1260,13 @@ function renderPrintItems() {
 
 function onPrecioVentaChange(idx) {
   if (previewItemIdx === idx) previewItem(idx);
+}
+
+function pvEnter(e, idx) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const next = document.querySelector(`.pv-input[data-idx="${idx + 1}"]`);
+  if (next) { next.focus(); next.select(); }
 }
 
 function onCantidadChange(idx) {
