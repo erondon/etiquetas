@@ -307,6 +307,14 @@ def pmonto_simple(s):
 
 # ── ZPL por ítem para Zebra ZD2824 Plus ──────────────────────────────────────
 # Etiqueta: 2.25" x 1.25"  →  457 x 254 dots @ 203 dpi
+_MUR_MAP = {'0':'O','1':'M','2':'U','3':'R','4':'C','5':'I','6':'E','7':'L','8':'A','9':'G'}
+
+def a_murcielago(costo_usd):
+    import math
+    dec    = costo_usd - math.floor(costo_usd)
+    entero = math.ceil(costo_usd) if dec > 0.5 else math.floor(costo_usd)
+    return ''.join(_MUR_MAP[d] for d in str(max(entero, 0)))
+
 def generar_zpl_item(item, factura, precio_venta, timestamp_unix):
     def trunc(s, n): return (str(s or ''))[:n]
 
@@ -315,6 +323,9 @@ def generar_zpl_item(item, factura, precio_venta, timestamp_unix):
     cantidad    = int(item.get('cantidad', 1))
     pv_usd      = float(precio_venta or 0)
     pv_usd_str  = f'{pv_usd:,.2f}'
+    tasa        = float(factura.get('tasa_cambio') or 1) or 1
+    costo_usd   = float(item.get('precio_unit', 0)) / tasa
+    murcielago  = a_murcielago(costo_usd)
     ts          = int(timestamp_unix)
     referencia  = trunc(factura.get('referencia',''), 24)  # 8121-42089
     bc          = re.sub(r'[^A-Z0-9]', '', codigo.upper()) or 'PROD'
@@ -335,9 +346,10 @@ def generar_zpl_item(item, factura, precio_venta, timestamp_unix):
         f'^CF0,48\n^FO10,80^FD$ {pv_usd_str}^FS\n'
         # Línea separadora
         f'^FO4,136^GB449,0,1^FS\n'
-        # Referencia: codigoproveedor-numerofactura  |  timestamp
+        # Referencia  |  MURCIELAGO  |  timestamp
         f'^CF0,18\n^FO10,142^FD{referencia}^FS\n'
-        f'^CF0,16\n^FO280,142^FD{ts}^FS\n'
+        f'^CF0,22\n^FO220,138^FD{murcielago}^FS\n'
+        f'^CF0,14\n^FO360,146^FD{ts}^FS\n'
         # Línea separadora barcode
         f'^FO4,166^GB449,0,1^FS\n'
         # Código de barras del producto

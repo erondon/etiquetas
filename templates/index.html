@@ -1262,6 +1262,13 @@ function onPrecioVentaChange(idx) {
   if (previewItemIdx === idx) previewItem(idx);
 }
 
+function aMurcielago(costoUSD) {
+  const tabla = {'0':'O','1':'M','2':'U','3':'R','4':'C','5':'I','6':'E','7':'L','8':'A','9':'G'};
+  const dec    = costoUSD - Math.floor(costoUSD);
+  const entero = dec > 0.5 ? Math.ceil(costoUSD) : Math.floor(costoUSD);
+  return String(Math.max(entero, 0)).split('').map(d => tabla[d]).join('');
+}
+
 function pvEnter(e, idx) {
   if (e.key !== 'Enter') return;
   e.preventDefault();
@@ -1305,6 +1312,7 @@ function previewItem(idx) {
   const tasa   = parseFloat(printFacData?.tasa_cambio) || 1;
   const pvUSD  = pv > 0 ? parseFloat(pv).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '0.00';
   const ref    = (printFacData?.referencia || printFacData?.num_documento || '').slice(0, 24);
+  const murcielago = aMurcielago(Number(item.precio_unit || 0) / tasa);
   const barsSVG = generarBarrasSVG(bc, 178, 44, 420, 16);
 
   const svg = `
@@ -1331,10 +1339,12 @@ function previewItem(idx) {
     <!-- Línea -->
     <line x1="8" y1="132" x2="${W-8}" y2="132" stroke="#ddd" stroke-width="1"/>
 
-    <!-- Referencia proveedor-factura + timestamp -->
+    <!-- Referencia | MURCIELAGO | timestamp -->
     <text x="10" y="152" font-size="14" fill="#333" font-weight="600"
           font-family="'Courier New',monospace">${esc(ref)}</text>
-    <text x="${W-10}" y="152" font-size="12" fill="#888" text-anchor="end"
+    <text x="220" y="152" font-size="17" fill="#111" font-weight="bold"
+          font-family="'Courier New',monospace">${esc(murcielago)}</text>
+    <text x="${W-10}" y="152" font-size="11" fill="#aaa" text-anchor="end"
           font-family="'Courier New',monospace">${ts}</text>
 
     <!-- Línea -->
@@ -1360,6 +1370,8 @@ function generarZPLCliente(item, factura, precioVenta, ts) {
   const desc   = trunc(item.descripcion, 32);
   const cant   = parseInt(document.querySelector(`.qty-input[data-idx="${previewItemIdx}"]`)?.value) || item.cantidad || 1;
   const pvUSD  = parseFloat(precioVenta||0).toFixed(2);
+  const tasa   = parseFloat(factura?.tasa_cambio) || 1;
+  const mur    = aMurcielago(Number(item.precio_unit || 0) / tasa);
   const ref    = trunc(factura?.referencia || factura?.num_documento || '', 24);
   const bc     = (item.codigo||'').replace(/[^A-Z0-9]/gi,'').toUpperCase() || 'PROD';
 
@@ -1374,7 +1386,8 @@ function generarZPLCliente(item, factura, precioVenta, ts) {
     `^CF0,48\n^FO10,80^FD$ ${pvUSD}^FS`,
     '^FO4,136^GB449,0,1^FS',
     `^CF0,18\n^FO10,142^FD${ref}^FS`,
-    `^CF0,16\n^FO280,142^FD${ts}^FS`,
+    `^CF0,22\n^FO220,138^FD${mur}^FS`,
+    `^CF0,14\n^FO360,146^FD${ts}^FS`,
     '^FO4,166^GB449,0,1^FS',
     `^BY1,3,36\n^FO10,170^BCN,36,N,N^FD${bc}^FS`,
     '^XZ'
