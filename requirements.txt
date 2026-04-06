@@ -5,3 +5,4 @@ pyserial==3.5
 Werkzeug==3.0.1
 openpyxl==3.1.2
 xlrd==2.0.1
+pywin32==306

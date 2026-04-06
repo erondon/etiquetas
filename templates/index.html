@@ -630,7 +630,10 @@ select option{background:var(--surface2)}
             <div class="radio-label" style="font-size:12px">🌐 Red</div>
           </div>
           <div class="radio-opt" id="pi-opt-usb" onclick="piSelectConn('usb')" style="padding:7px 12px;flex:none">
-            <div class="radio-label" style="font-size:12px">🔌 USB</div>
+            <div class="radio-label" style="font-size:12px">🔌 USB/COM</div>
+          </div>
+          <div class="radio-opt" id="pi-opt-windows" onclick="piSelectConn('windows')" style="padding:7px 12px;flex:none">
+            <div class="radio-label" style="font-size:12px">💻 Windows</div>
           </div>
         </div>
         <div id="pi-net" style="display:flex;gap:8px;align-items:center">
@@ -639,6 +642,9 @@ select option{background:var(--surface2)}
         </div>
         <div id="pi-usb" style="display:none">
           <input type="text" id="pi_com" placeholder="COM3 o /dev/usb/lp0" style="width:180px;padding:7px 10px;font-size:12px">
+        </div>
+        <div id="pi-windows" style="display:none">
+          <input type="text" id="pi_wname" placeholder="Nombre impresora Windows" value="Zebra TechnologiesZTC LP 2824 Plus" style="width:280px;padding:7px 10px;font-size:12px">
         </div>
         <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
           <div id="tsDisplay" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
@@ -1307,13 +1313,13 @@ function previewItem(idx) {
   // Timestamp display
   document.getElementById('tsDisplay').textContent = `TS: ${ts}  ·  ${tsStr}`;
 
-  // SVG preview — mismo layout que la etiqueta real (450×250 px)
-  const W = 450, H = 250;
+  // SVG preview — mismo layout que la etiqueta real (456×352 dots = 57×44mm)
+  const W = 456, H = 352;
   const tasa   = parseFloat(printFacData?.tasa_cambio) || 1;
   const pvUSD  = pv > 0 ? parseFloat(pv).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '0.00';
   const ref    = (printFacData?.referencia || printFacData?.num_documento || '').slice(0, 24);
   const murcielago = aMurcielago(Number(item.precio_unit || 0) / tasa);
-  const barsSVG = generarBarrasSVG(bc, 178, 44, 420, 16);
+  const barsSVG = generarBarrasSVG(bc, 214, 80, 430, 16);
 
   const svg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="background:#fff;display:block">
@@ -1322,33 +1328,33 @@ function previewItem(idx) {
     <rect x="2" y="2" width="${W-4}" height="${H-4}" rx="3" fill="white" stroke="#222" stroke-width="2"/>
 
     <!-- Código -->
-    <text x="10" y="34" font-size="22" fill="#111" font-weight="bold"
+    <text x="10" y="38" font-size="23" fill="#111" font-weight="bold"
           font-family="'Courier New',monospace">${esc(codigo)}</text>
 
     <!-- Descripción -->
-    <text x="10" y="58" font-size="15" fill="#444"
+    <text x="10" y="66" font-size="17" fill="#444"
           font-family="Arial,sans-serif">${esc(desc)}</text>
 
     <!-- Línea -->
-    <line x1="8" y1="68" x2="${W-8}" y2="68" stroke="#ddd" stroke-width="1"/>
+    <line x1="8" y1="84" x2="${W-8}" y2="84" stroke="#ddd" stroke-width="1"/>
 
-    <!-- Precio USD (muy grande) -->
-    <text x="10" y="122" font-size="40" fill="#000" font-weight="bold"
+    <!-- Precio USD (grande) -->
+    <text x="10" y="158" font-size="52" fill="#000" font-weight="bold"
           font-family="Arial,sans-serif">$ ${esc(pvUSD)}</text>
 
     <!-- Línea -->
-    <line x1="8" y1="132" x2="${W-8}" y2="132" stroke="#ddd" stroke-width="1"/>
+    <line x1="8" y1="170" x2="${W-8}" y2="170" stroke="#ddd" stroke-width="1"/>
 
     <!-- Referencia | MURCIELAGO | timestamp -->
-    <text x="10" y="152" font-size="14" fill="#333" font-weight="600"
+    <text x="10" y="192" font-size="15" fill="#333" font-weight="600"
           font-family="'Courier New',monospace">${esc(ref)}</text>
-    <text x="220" y="152" font-size="17" fill="#111" font-weight="bold"
+    <text x="240" y="192" font-size="18" fill="#111" font-weight="bold"
           font-family="'Courier New',monospace">${esc(murcielago)}</text>
-    <text x="${W-10}" y="152" font-size="11" fill="#aaa" text-anchor="end"
+    <text x="${W-10}" y="192" font-size="11" fill="#aaa" text-anchor="end"
           font-family="'Courier New',monospace">${ts}</text>
 
     <!-- Línea -->
-    <line x1="8" y1="162" x2="${W-8}" y2="162" stroke="#ddd" stroke-width="1"/>
+    <line x1="8" y1="206" x2="${W-8}" y2="206" stroke="#ddd" stroke-width="1"/>
 
     <!-- Barcode -->
     ${barsSVG}
@@ -1377,19 +1383,19 @@ function generarZPLCliente(item, factura, precioVenta, ts) {
 
   return [
     '^XA',
-    '^PW457', '^LL254',
+    '^PW456', '^LL352',
     `^PQ${cant}`,
-    '^FO4,4^GB449,246,2^FS',
-    `^CF0,28\n^FO10,12^FD${codigo}^FS`,
-    `^CF0,20\n^FO10,46^FD${desc}^FS`,
-    '^FO4,72^GB449,0,1^FS',
-    `^CF0,48\n^FO10,80^FD$ ${pvUSD}^FS`,
-    '^FO4,136^GB449,0,1^FS',
-    `^CF0,18\n^FO10,142^FD${ref}^FS`,
-    `^CF0,22\n^FO220,138^FD${mur}^FS`,
-    `^CF0,14\n^FO360,146^FD${ts}^FS`,
-    '^FO4,166^GB449,0,1^FS',
-    `^BY1,3,36\n^FO10,170^BCN,36,N,N^FD${bc}^FS`,
+    '^FO4,4^GB448,344,2^FS',
+    `^CF0,30\n^FO10,18^FD${codigo}^FS`,
+    `^CF0,22\n^FO10,56^FD${desc}^FS`,
+    '^FO4,86^GB448,0,1^FS',
+    `^CF0,60\n^FO10,100^FD$ ${pvUSD}^FS`,
+    '^FO4,172^GB448,0,1^FS',
+    `^CF0,20\n^FO10,190^FD${ref}^FS`,
+    `^CF0,24\n^FO240,186^FD${mur}^FS`,
+    `^CF0,16\n^FO370,194^FD${ts}^FS`,
+    '^FO4,208^GB448,0,1^FS',
+    `^BY2,3,80\n^FO10,214^BCN,80,N,N^FD${bc}^FS`,
     '^XZ'
   ].join('\n');
 }
@@ -1567,8 +1573,10 @@ function piSelectConn(modo) {
   piConnMode = modo;
   document.getElementById('pi-opt-red').classList.toggle('selected', modo==='red');
   document.getElementById('pi-opt-usb').classList.toggle('selected', modo==='usb');
-  document.getElementById('pi-net').style.display = modo==='red' ? '' : 'none';
-  document.getElementById('pi-usb').style.display = modo==='usb' ? '' : 'none';
+  document.getElementById('pi-opt-windows').classList.toggle('selected', modo==='windows');
+  document.getElementById('pi-net').style.display     = modo==='red'     ? '' : 'none';
+  document.getElementById('pi-usb').style.display     = modo==='usb'     ? '' : 'none';
+  document.getElementById('pi-windows').style.display = modo==='windows' ? '' : 'none';
 }
 
 function imprimirItemsSeleccionados() {
@@ -1589,11 +1597,16 @@ function imprimirItemsSeleccionados() {
     if (!confirm(`${sinPrecio.length} producto(s) sin precio de venta. ¿Continuar de todas formas?`)) return;
   }
 
-  const printer = piConnMode === 'red'
-    ? { modo:'red', ip: document.getElementById('pi_ip').value.trim(), puerto: parseInt(document.getElementById('pi_port').value)||9100 }
-    : { modo:'usb', port: document.getElementById('pi_com').value.trim() };
-
-  if (piConnMode === 'red' && !printer.ip) { toast('Ingresa la IP de la impresora', 'error'); return; }
+  let printer;
+  if (piConnMode === 'red') {
+    printer = { modo:'red', ip: document.getElementById('pi_ip').value.trim(), puerto: parseInt(document.getElementById('pi_port').value)||9100 };
+    if (!printer.ip) { toast('Ingresa la IP de la impresora', 'error'); return; }
+  } else if (piConnMode === 'windows') {
+    printer = { modo:'windows', printer_name: document.getElementById('pi_wname').value.trim() };
+    if (!printer.printer_name) { toast('Ingresa el nombre de la impresora', 'error'); return; }
+  } else {
+    printer = { modo:'usb', port: document.getElementById('pi_com').value.trim() };
+  }
 
   document.getElementById('btnImprimir').textContent = 'Enviando...';
   document.getElementById('btnImprimir').disabled = true;

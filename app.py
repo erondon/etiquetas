@@ -332,29 +332,29 @@ def generar_zpl_item(item, factura, precio_venta, timestamp_unix):
 
     zpl = (
         f'^XA\n'
-        f'^PW457\n^LL254\n'
+        f'^PW456\n^LL352\n'
         f'^PQ{cantidad}\n'
-        # Borde
-        f'^FO4,4^GB449,246,2^FS\n'
+        # Borde  (57mm × 44mm @ 203dpi = 456 × 352 dots)
+        f'^FO4,4^GB448,344,2^FS\n'
         # Código del producto
-        f'^CF0,28\n^FO10,12^FD{codigo}^FS\n'
+        f'^CF0,30\n^FO10,18^FD{codigo}^FS\n'
         # Descripción
-        f'^CF0,20\n^FO10,46^FD{descripcion}^FS\n'
+        f'^CF0,22\n^FO10,56^FD{descripcion}^FS\n'
         # Línea separadora
-        f'^FO4,72^GB449,0,1^FS\n'
+        f'^FO4,86^GB448,0,1^FS\n'
         # Precio de venta en USD (grande)
-        f'^CF0,48\n^FO10,80^FD$ {pv_usd_str}^FS\n'
+        f'^CF0,60\n^FO10,100^FD$ {pv_usd_str}^FS\n'
         # Línea separadora
-        f'^FO4,136^GB449,0,1^FS\n'
+        f'^FO4,172^GB448,0,1^FS\n'
         # Referencia  |  MURCIELAGO  |  timestamp
-        f'^CF0,18\n^FO10,142^FD{referencia}^FS\n'
-        f'^CF0,22\n^FO220,138^FD{murcielago}^FS\n'
-        f'^CF0,14\n^FO360,146^FD{ts}^FS\n'
+        f'^CF0,20\n^FO10,190^FD{referencia}^FS\n'
+        f'^CF0,24\n^FO240,186^FD{murcielago}^FS\n'
+        f'^CF0,16\n^FO370,194^FD{ts}^FS\n'
         # Línea separadora barcode
-        f'^FO4,166^GB449,0,1^FS\n'
+        f'^FO4,208^GB448,0,1^FS\n'
         # Código de barras del producto
-        f'^BY1,3,36\n'
-        f'^FO10,170^BCN,36,N,N^FD{bc}^FS\n'
+        f'^BY2,3,80\n'
+        f'^FO10,214^BCN,80,N,N^FD{bc}^FS\n'
         f'^XZ'
     )
     return zpl
@@ -374,6 +374,24 @@ def enviar_red(zpl, ip, puerto=9100):
             s.connect((ip, int(puerto)))
             s.sendall(zpl.encode('utf-8'))
         return True, f'Impreso en {ip}:{puerto}'
+    except Exception as e:
+        return False, str(e)
+
+def enviar_windows(zpl, printer_name):
+    try:
+        import win32print
+        hprinter = win32print.OpenPrinter(printer_name)
+        try:
+            win32print.StartDocPrinter(hprinter, 1, ("ZPL Label", None, "RAW"))
+            try:
+                win32print.StartPagePrinter(hprinter)
+                win32print.WritePrinter(hprinter, zpl.encode('utf-8'))
+                win32print.EndPagePrinter(hprinter)
+            finally:
+                win32print.EndDocPrinter(hprinter)
+        finally:
+            win32print.ClosePrinter(hprinter)
+        return True, f'Impreso en {printer_name}'
     except Exception as e:
         return False, str(e)
 
@@ -651,6 +669,10 @@ def imprimir_items():
         ip = cfg.get('ip', '').strip()
         if not ip: return jsonify({'error': 'Debe indicar la IP de la impresora'}), 400
         ok, msg = enviar_red(zpl_total, ip, cfg.get('puerto', 9100))
+    elif modo == 'windows':
+        printer_name = cfg.get('printer_name', '').strip()
+        if not printer_name: return jsonify({'error': 'Debe indicar el nombre de la impresora'}), 400
+        ok, msg = enviar_windows(zpl_total, printer_name)
     else:
         ok, msg = enviar_usb(zpl_total, cfg.get('port', 'COM1'))
 
@@ -740,6 +762,16 @@ def api_dashboard():
         'total_pendiente':  db.execute("SELECT COALESCE(SUM(total),0)     FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
         'total_pend_usd':   db.execute("SELECT COALESCE(SUM(total_usd),0) FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
     })
+
+@app.route('/api/windows_printers')
+def windows_printers():
+    try:
+        import win32print
+        flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+        printers = [p[2] for p in win32print.EnumPrinters(flags, None, 1)]
+        return jsonify({'printers': printers})
+    except Exception as e:
+        return jsonify({'printers': [], 'error': str(e)})
 
 @app.route('/api/catalogo/stats')
 def catalogo_stats():
