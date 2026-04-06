@@ -81,6 +81,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .badge-venc{background:rgba(240,90,90,0.12);color:var(--danger);border:1px solid rgba(240,90,90,0.25)}
 .badge-venc::before{background:var(--danger)}
 .badge-paid{background:rgba(62,207,142,0.12);color:var(--success);border:1px solid rgba(62,207,142,0.25)}
+.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.sortable:hover{color:var(--text)}
+.sort-ico{font-size:10px;opacity:.5;margin-left:2px}
 .badge-paid::before{background:var(--success)}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:none;align-items:center;justify-content:center}
 .overlay.open{display:flex}
@@ -222,7 +225,7 @@ select option{background:var(--surface2)}
         </div>
         <div class="stat-card total">
           <div class="stat-label">Total Pendiente</div>
-          <div class="stat-value" id="sTotal" style="font-size:16px">{{ "{:,.0f}".format(total_pendiente) }} <span style="font-size:12px;font-weight:400;opacity:.7">VES</span></div>
+          <div class="stat-value" id="sTotal" style="font-size:16px">$ {{ "{:,.2f}".format(total_pendiente) }} <span style="font-size:12px;font-weight:400;opacity:.7">USD</span></div>
           <div class="stat-sub" id="sTotalUsd" style="color:var(--success);font-family:var(--mono);font-size:13px;margin-top:4px">$ —</div>
         </div>
       </div>
@@ -243,13 +246,14 @@ select option{background:var(--surface2)}
         <table id="facturasTable">
           <thead>
             <tr>
-              <th>Proveedor</th>
-              <th>Tipo / N°</th>
-              <th>Fecha</th>
-              <th>Total VES</th>
-              <th>Tasa</th>
-              <th style="color:var(--success)">Total USD</th>
-              <th>Estado</th>
+              <th class="sortable" onclick="sortTable(0,'text')" >Proveedor <span class="sort-ico"></span></th>
+              <th class="sortable" onclick="sortTable(1,'text')" ># Factura <span class="sort-ico"></span></th>
+              <th class="sortable" onclick="sortTable(2,'num')"  style="color:var(--accent)">Monto Full <span class="sort-ico"></span></th>
+              <th class="sortable" onclick="sortTable(3,'num')"  style="color:var(--accent)">Monto a Pagar <span class="sort-ico"></span></th>
+              <th class="sortable" onclick="sortTable(4,'text')" >Sede <span class="sort-ico"></span></th>
+              <th class="sortable" onclick="sortTable(5,'date')" >Fecha Emisión <span class="sort-ico"></span></th>
+              <th class="sortable" onclick="sortTable(6,'date')" >Fecha Venc. <span class="sort-ico"></span></th>
+              <th class="sortable" onclick="sortTable(7,'text')" >Estado <span class="sort-ico"></span></th>
               <th style="width:180px">Acciones</th>
             </tr>
           </thead>
@@ -257,32 +261,33 @@ select option{background:var(--surface2)}
             {% for f in facturas %}
             <tr data-estado="{{ f.estado }}" data-id="{{ f.id }}"
                 data-search="{{ (f.proveedor or '')|lower }} {{ (f.num_documento or '')|lower }} {{ (f.empresa_propia or '')|lower }}">
-              <td>
-                <div style="font-weight:500">{{ f.proveedor or '—' }}</div>
-                <div style="font-size:11px;color:var(--muted)">{{ f.empresa_propia or '' }}</div>
+              <td style="font-weight:500" data-val="{{ f.proveedor or '' }}">{{ f.proveedor or '—' }}</td>
+              <td class="td-mono" data-val="{{ f.num_documento or '' }}">
+                {% if f.estado == 'pagado' and f.archivo_comprobante %}
+                  <a href="/comprobante/{{ f.archivo_comprobante }}" target="_blank"
+                     style="color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:5px"
+                     title="Ver comprobante de pago">
+                    #{{ f.num_documento }}
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.6"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  </a>
+                {% else %}
+                  <span style="color:var(--accent)">#{{ f.num_documento }}</span>
+                {% endif %}
               </td>
-              <td class="td-mono">
-                <div>{{ f.tipo_doc or 'COMPRA' }}</div>
-                <div style="color:var(--accent);font-size:12px">#{{ f.num_documento }}</div>
+              <td class="td-mono" style="font-weight:700;color:var(--accent)" data-val="{{ f.monto_factura_usd or 0 }}">
+                {% if f.monto_factura_usd and f.monto_factura_usd > 0 %}$ {{ "{:,.2f}".format(f.monto_factura_usd) }}{% else %}—{% endif %}
               </td>
-              <td class="td-mono">{{ f.fecha or '—' }}</td>
-              <td class="td-mono" style="font-weight:700">
-                {{ f.moneda }} {{ "{:,.2f}".format(f.total or 0) }}
+              <td class="td-mono" style="font-weight:700;color:var(--accent)" data-val="{{ f.monto_pagar_usd or 0 }}">
+                {% if f.monto_pagar_usd and f.monto_pagar_usd > 0 %}$ {{ "{:,.2f}".format(f.monto_pagar_usd) }}{% else %}—{% endif %}
               </td>
-              <td class="td-mono" style="color:var(--muted);font-size:11px">
-                {% if f.tasa_cambio and f.tasa_cambio != 1 %}
-                  {{ "{:,.2f}".format(f.tasa_cambio) }}
-                {% else %}—{% endif %}
-              </td>
-              <td class="td-mono usd-val">
-                {% if f.total_usd and f.total_usd > 0 %}
-                  $ {{ "{:,.2f}".format(f.total_usd) }}
-                {% else %}—{% endif %}
-              </td>
-              <td>
+              <td style="font-size:12px;color:var(--muted)" data-val="{{ f.empresa_propia or '' }}">{{ f.empresa_propia or '—' }}</td>
+              <td class="td-mono" style="font-size:12px" data-val="{{ f.fecha or '' }}">{{ f.fecha or '—' }}</td>
+              <td class="td-mono" style="font-size:12px" data-val="{{ f.fecha_vence or '' }}">{{ f.fecha_vence or '—' }}</td>
+              <td data-val="{{ f.estado or '' }}">
                 {% if f.estado == 'pendiente' %}<span class="badge badge-pend">Pendiente</span>
                 {% elif f.estado == 'vencido' %}<span class="badge badge-venc">Vencido</span>
                 {% else %}<span class="badge badge-paid">Pagado</span>{% endif %}
+                {% if f.metodo_pago %}<div style="font-size:10px;color:var(--muted);margin-top:3px">{{ f.metodo_pago }}</div>{% endif %}
               </td>
               <td>
                 <div style="display:flex;gap:5px;flex-wrap:wrap">
@@ -290,8 +295,9 @@ select option{background:var(--surface2)}
                     onclick="openPrintModal({{ f.id }})" style="gap:5px">
                     🏷 Etiquetas
                   </button>
+                  <button class="btn btn-secondary btn-sm" title="Editar" onclick="openEditModal({{ f.id }})">✏</button>
                   {% if f.estado != 'pagado' %}
-                  <button class="btn btn-success btn-sm" onclick="marcarPagado({{ f.id }},this)">✓ Pagado</button>
+                  <button class="btn btn-success btn-sm" onclick="openPagoModal({{ f.id }}, this)">✓ Pagado</button>
                   {% endif %}
                   <button class="btn btn-danger btn-sm btn-icon" title="Eliminar"
                     onclick="eliminarDoc({{ f.id }},this)">
@@ -377,11 +383,16 @@ select option{background:var(--surface2)}
           </div>
           <div class="form-group">
             <label>Fecha</label>
-            <input type="date" id="f_fecha">
+            <input type="date" id="f_fecha" oninput="calcFechaVence('f')">
           </div>
           <div class="form-group">
-            <label>Fecha vencimiento (opcional)</label>
-            <input type="date" id="f_fecha_vence">
+            <label>Días para vencer</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="number" min="0" id="f_dias_vence" placeholder="Ej: 30"
+                     oninput="calcFechaVence('f')" style="flex:1">
+              <span id="f_fecha_vence_lbl" style="font-size:11px;color:var(--accent);white-space:nowrap;font-family:var(--mono)"></span>
+            </div>
+            <input type="hidden" id="f_fecha_vence">
           </div>
 
           <div class="section-divider">💰 Montos</div>
@@ -421,6 +432,14 @@ select option{background:var(--surface2)}
           <div class="form-group">
             <label>Total USD <span style="color:var(--success);font-weight:700" id="f_total_usd_lbl"></span></label>
             <input type="number" step="0.0001" id="f_total_usd" readonly style="color:var(--success);font-weight:600">
+          </div>
+          <div class="form-group">
+            <label>Monto total factura (USD)</label>
+            <input type="number" step="0.01" min="0" id="f_monto_factura_usd" placeholder="0.00" style="color:var(--accent)">
+          </div>
+          <div class="form-group">
+            <label>Monto a pagar (USD)</label>
+            <input type="number" step="0.01" min="0" id="f_monto_pagar_usd" placeholder="0.00" style="color:var(--accent)">
           </div>
           <div class="form-group">
             <label>Moneda</label>
@@ -513,11 +532,16 @@ select option{background:var(--surface2)}
         </div>
         <div class="form-group">
           <label>Fecha</label>
-          <input type="date" id="m_fecha">
+          <input type="date" id="m_fecha" oninput="calcFechaVence('m')">
         </div>
         <div class="form-group">
-          <label>Fecha vencimiento</label>
-          <input type="date" id="m_fecha_vence">
+          <label>Días para vencer</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" min="0" id="m_dias_vence" placeholder="Ej: 30"
+                   oninput="calcFechaVence('m')" style="flex:1">
+            <span id="m_fecha_vence_lbl" style="font-size:11px;color:var(--accent);white-space:nowrap;font-family:var(--mono)"></span>
+          </div>
+          <input type="hidden" id="m_fecha_vence">
         </div>
         <div class="form-group">
           <label>Subtotal</label>
@@ -738,6 +762,108 @@ select option{background:var(--surface2)}
   </div>
 </div>
 
+<!-- ═══════════════════ MODAL: EDITAR FACTURA ═══════════════════ -->
+<div class="overlay" id="editModal">
+  <div class="modal" style="width:min(620px,95vw)">
+    <div class="modal-head">
+      <div class="modal-title">✏ Editar Documento</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('editModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="e_id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Proveedor</label>
+          <input type="text" id="e_proveedor">
+        </div>
+        <div class="form-group">
+          <label>RIF Proveedor</label>
+          <input type="text" id="e_rif_proveedor">
+        </div>
+        <div class="form-group">
+          <label>Sede (empresa emisora)</label>
+          <input type="text" id="e_empresa_propia">
+        </div>
+        <div class="form-group">
+          <label>RIF empresa</label>
+          <input type="text" id="e_rif_propio">
+        </div>
+        <div class="form-group">
+          <label># Factura / Documento</label>
+          <input type="text" id="e_num_documento">
+        </div>
+        <div class="form-group">
+          <label>Fecha</label>
+          <input type="date" id="e_fecha" oninput="calcFechaVence('e')">
+        </div>
+        <div class="form-group">
+          <label>Días para vencer</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="number" min="0" id="e_dias_vence" placeholder="Ej: 30"
+                   oninput="calcFechaVence('e')" style="flex:1">
+            <span id="e_fecha_vence_lbl" style="font-size:11px;color:var(--accent);white-space:nowrap;font-family:var(--mono)"></span>
+          </div>
+          <input type="hidden" id="e_fecha_vence">
+        </div>
+        <div class="form-group" style="grid-column:1">
+          <label>Monto total factura (USD)</label>
+          <input type="number" step="0.01" min="0" id="e_monto_factura_usd" style="color:var(--accent)">
+        </div>
+        <div class="form-group">
+          <label>Monto a pagar (USD)</label>
+          <input type="number" step="0.01" min="0" id="e_monto_pagar_usd" style="color:var(--accent)">
+        </div>
+        <div class="form-group full">
+          <label>Notas</label>
+          <textarea id="e_notas"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('editModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicion()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: MÉTODO DE PAGO ═══════════════════ -->
+<div class="overlay" id="pagoModal">
+  <div class="modal" style="width:min(420px,95vw)">
+    <div class="modal-head">
+      <div class="modal-title">✓ Registrar Pago</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('pagoModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Método de pago</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn btn-secondary pago-metodo" style="padding:14px;font-size:13px;justify-content:center" data-metodo="EFECTIVO"   onclick="selMetodo(this)">💵 Efectivo</button>
+          <button class="btn btn-secondary pago-metodo" style="padding:14px;font-size:13px;justify-content:center" data-metodo="ZELLE"       onclick="selMetodo(this)">💙 Zelle</button>
+          <button class="btn btn-secondary pago-metodo" style="padding:14px;font-size:13px;justify-content:center" data-metodo="USDT"        onclick="selMetodo(this)">🪙 USDT</button>
+          <button class="btn btn-secondary pago-metodo" style="padding:14px;font-size:13px;justify-content:center" data-metodo="PAGO MOVIL"  onclick="selMetodo(this)">📱 Pago Móvil</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">N° Comprobante</div>
+        <input type="text" id="pago_comprobante" placeholder="Ej: 00123456"
+               style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:var(--mono);font-size:13px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Comprobante (imagen o PDF)</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:10px 14px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="pagoArchivoLabel" style="font-size:12px;color:var(--muted)">Seleccionar archivo (opcional)</span>
+          <input type="file" id="pago_archivo" accept=".pdf,.png,.jpg,.jpeg,.webp" style="display:none" onchange="document.getElementById('pagoArchivoLabel').textContent=this.files[0]?.name||'Seleccionar archivo'">
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('pagoModal')">Cancelar</button>
+      <button class="btn btn-primary" id="btnConfirmarPago" onclick="confirmarPago()">✓ Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL: CATÁLOGO DE PRODUCTOS ═══════════════════ -->
 <div class="overlay" id="catalogoModal">
   <div class="modal" style="width:min(480px,95vw)">
@@ -821,7 +947,7 @@ function actualizarTotalUSDDashboard() {
     document.getElementById('sVencidas').textContent   = d.vencidas;
     document.getElementById('sPagadas').textContent    = d.pagadas;
     document.getElementById('sTotal').innerHTML =
-      `${(d.total_pendiente||0).toLocaleString('es-VE',{maximumFractionDigits:0})} <span style="font-size:12px;font-weight:400;opacity:.7">VES</span>`;
+      `$ ${(d.total_pendiente||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} <span style="font-size:12px;font-weight:400;opacity:.7">USD</span>`;
     const usdEl = document.getElementById('sTotalUsd');
     if (d.total_pend_usd > 0)
       usdEl.textContent = `$ ${d.total_pend_usd.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} USD`;
@@ -1038,10 +1164,12 @@ function guardarExtraido() {
     fecha:          g('f_fecha'),          fecha_vence:    g('f_fecha_vence'),
     subtotal:       g('f_subtotal'),       flete:          g('f_flete'),
     monto_iva:      g('f_monto_iva'),      total:          g('f_total'),
-    tasa_cambio:    parseFloat(g('f_tasa_cambio')) || tasaActiva || 1,
-    moneda:         g('f_moneda'),         estado:         g('f_estado'),
-    notas:          g('f_notas'),          archivo_pdf:    g('f_archivo_pdf'),
-    items:          _lastParsedItems,
+    tasa_cambio:       parseFloat(g('f_tasa_cambio')) || tasaActiva || 1,
+    monto_factura_usd: parseFloat(g('f_monto_factura_usd')) || 0,
+    monto_pagar_usd:   parseFloat(g('f_monto_pagar_usd'))   || 0,
+    moneda:            g('f_moneda'),         estado:      g('f_estado'),
+    notas:             g('f_notas'),          archivo_pdf: g('f_archivo_pdf'),
+    items:             _lastParsedItems,
   };
   if (!data.proveedor || !data.num_documento) { toast('Proveedor y N° Documento son obligatorios', 'error'); return; }
   postDoc(data);
@@ -1080,19 +1208,110 @@ function postDoc(data) {
 }
 
 // ── Acciones tabla ────────────────────────────────────────────────────────
-function marcarPagado(id, btn) {
-  fetch(`/actualizar_estado/${id}`, {
-    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({estado:'pagado'})
-  }).then(r => r.json()).then(res => {
-    if (res.ok) {
-      const row = btn.closest('tr');
-      row.querySelector('.badge').outerHTML = '<span class="badge badge-paid">Pagado</span>';
-      row.dataset.estado = 'pagado';
-      btn.remove();
-      toast('Marcado como pagado', 'success');
-      refreshStats();
-    }
-  });
+let _pagoFid = null, _pagoBtn = null, _pagoMetodo = null;
+
+function openPagoModal(id, btn) {
+  _pagoFid = id; _pagoBtn = btn; _pagoMetodo = null;
+  document.querySelectorAll('.pago-metodo').forEach(b => b.classList.remove('btn-primary'));
+  document.getElementById('pago_comprobante').value = '';
+  document.getElementById('pago_archivo').value = '';
+  document.getElementById('pagoArchivoLabel').textContent = 'Seleccionar archivo (opcional)';
+  openModal('pagoModal');
+}
+
+function selMetodo(btn) {
+  document.querySelectorAll('.pago-metodo').forEach(b => { b.classList.remove('btn-primary'); b.classList.add('btn-secondary'); });
+  btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary');
+  _pagoMetodo = btn.dataset.metodo;
+}
+
+async function confirmarPago() {
+  if (!_pagoMetodo) { toast('Selecciona un método de pago', 'error'); return; }
+  const numComp = document.getElementById('pago_comprobante').value.trim();
+  const archivo = document.getElementById('pago_archivo').files[0];
+
+  const btnConf = document.getElementById('btnConfirmarPago');
+  btnConf.disabled = true; btnConf.textContent = 'Guardando...';
+
+  // 1. Marcar como pagado
+  const res = await fetch(`/actualizar_estado/${_pagoFid}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({estado:'pagado', metodo_pago: _pagoMetodo, num_comprobante: numComp || null})
+  }).then(r => r.json());
+
+  if (!res.ok) { toast('Error al guardar', 'error'); btnConf.disabled = false; btnConf.textContent = '✓ Confirmar'; return; }
+
+  // 2. Subir comprobante si hay archivo
+  if (archivo) {
+    const fd = new FormData(); fd.append('archivo', archivo);
+    await fetch(`/api/factura/${_pagoFid}/comprobante`, {method:'POST', body:fd});
+  }
+
+  closeModal('pagoModal');
+  const row = _pagoBtn.closest('tr');
+  const info = [_pagoMetodo, numComp].filter(Boolean).join(' · ');
+  row.querySelector('.badge').outerHTML = `<span class="badge badge-paid">Pagado</span><div style="font-size:10px;color:var(--muted);margin-top:3px">${info}</div>`;
+  row.dataset.estado = 'pagado';
+  _pagoBtn.remove();
+  toast(`Pagado · ${info}`, 'success');
+  refreshStats();
+  btnConf.disabled = false; btnConf.textContent = '✓ Confirmar';
+}
+
+function openEditModal(id) {
+  fetch(`/api/factura/${id}/items`)
+    .then(r => r.json())
+    .then(res => {
+      const f = res.factura;
+      document.getElementById('e_id').value                = id;
+      document.getElementById('e_proveedor').value         = f.proveedor         || '';
+      document.getElementById('e_rif_proveedor').value     = f.rif_proveedor     || '';
+      document.getElementById('e_empresa_propia').value    = f.empresa_propia    || '';
+      document.getElementById('e_rif_propio').value        = f.rif_propio        || '';
+      document.getElementById('e_num_documento').value     = f.num_documento      || '';
+      document.getElementById('e_fecha').value = f.fecha || '';
+      // Calcular días entre fecha y fecha_vence
+      const diasEl = document.getElementById('e_dias_vence');
+      diasEl.value = '';
+      document.getElementById('e_fecha_vence_lbl').textContent = '';
+      document.getElementById('e_fecha_vence').value = f.fecha_vence || '';
+      if (f.fecha && f.fecha_vence) {
+        const diff = Math.round((new Date(f.fecha_vence) - new Date(f.fecha)) / 86400000);
+        if (diff >= 0) { diasEl.value = diff; document.getElementById('e_fecha_vence_lbl').textContent = `→ ${f.fecha_vence}`; }
+      }
+      document.getElementById('e_monto_factura_usd').value = f.monto_factura_usd || '';
+      document.getElementById('e_monto_pagar_usd').value   = f.monto_pagar_usd   || '';
+      document.getElementById('e_notas').value             = f.notas             || '';
+      openModal('editModal');
+    })
+    .catch(() => toast('Error cargando datos', 'error'));
+}
+
+async function guardarEdicion() {
+  const g   = id => document.getElementById(id)?.value || '';
+  const fid = g('e_id');
+  const res = await fetch(`/api/factura/${fid}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      proveedor:         g('e_proveedor'),
+      rif_proveedor:     g('e_rif_proveedor'),
+      empresa_propia:    g('e_empresa_propia'),
+      rif_propio:        g('e_rif_propio'),
+      num_documento:     g('e_num_documento'),
+      fecha:             g('e_fecha'),
+      fecha_vence:       g('e_fecha_vence'),
+      monto_factura_usd: parseFloat(g('e_monto_factura_usd')) || 0,
+      monto_pagar_usd:   parseFloat(g('e_monto_pagar_usd'))   || 0,
+      notas:             g('e_notas'),
+    })
+  }).then(r => r.json());
+  if (res.ok) {
+    toast('Documento actualizado', 'success');
+    closeModal('editModal');
+    setTimeout(() => location.reload(), 600);
+  } else {
+    toast(res.error || 'Error al guardar', 'error');
+  }
 }
 
 function eliminarDoc(id, btn) {
@@ -1266,6 +1485,42 @@ function renderPrintItems() {
 
 function onPrecioVentaChange(idx) {
   if (previewItemIdx === idx) previewItem(idx);
+}
+
+let _sortCol = -1, _sortAsc = true;
+function sortTable(col, type) {
+  const tbody = document.getElementById('facturasBody');
+  const rows  = [...tbody.querySelectorAll('tr')];
+  const asc   = _sortCol === col ? !_sortAsc : true;
+  _sortCol = col; _sortAsc = asc;
+
+  rows.sort((a, b) => {
+    const av = a.querySelectorAll('td')[col]?.dataset.val || '';
+    const bv = b.querySelectorAll('td')[col]?.dataset.val || '';
+    let cmp = 0;
+    if (type === 'num')  cmp = (parseFloat(av) || 0) - (parseFloat(bv) || 0);
+    else if (type === 'date') cmp = (av || '0').localeCompare(bv || '0');
+    else cmp = av.toLowerCase().localeCompare(bv.toLowerCase());
+    return asc ? cmp : -cmp;
+  });
+
+  rows.forEach(r => tbody.appendChild(r));
+  document.querySelectorAll('th .sort-ico').forEach((ico, i) => {
+    ico.textContent = i === col ? (asc ? ' ▲' : ' ▼') : '';
+  });
+}
+
+function calcFechaVence(prefix) {
+  const fecha = document.getElementById(`${prefix}_fecha`)?.value;
+  const dias  = parseInt(document.getElementById(`${prefix}_dias_vence`)?.value);
+  const lbl   = document.getElementById(`${prefix}_fecha_vence_lbl`);
+  const hid   = document.getElementById(`${prefix}_fecha_vence`);
+  if (!fecha || isNaN(dias) || dias < 0) { if(lbl) lbl.textContent = ''; if(hid) hid.value = ''; return; }
+  const d = new Date(fecha + 'T00:00:00');
+  d.setDate(d.getDate() + dias);
+  const iso = d.toISOString().slice(0, 10);
+  if (hid) hid.value = iso;
+  if (lbl) lbl.textContent = `→ ${iso}`;
 }
 
 function aMurcielago(costoUSD) {

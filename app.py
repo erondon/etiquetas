@@ -56,7 +56,11 @@ def init_db():
     """)
     # Migración: agregar columnas nuevas si la tabla ya existe
     for col, tipo in [('tasa_cambio','REAL DEFAULT 1'), ('subtotal_usd','REAL DEFAULT 0'),
-                      ('monto_iva_usd','REAL DEFAULT 0'), ('total_usd','REAL DEFAULT 0')]:
+                      ('monto_iva_usd','REAL DEFAULT 0'), ('total_usd','REAL DEFAULT 0'),
+                      ('monto_factura_usd','REAL DEFAULT 0'), ('monto_pagar_usd','REAL DEFAULT 0'),
+                      ('metodo_pago','TEXT DEFAULT NULL'),
+                      ('num_comprobante','TEXT DEFAULT NULL'),
+                      ('archivo_comprobante','TEXT DEFAULT NULL')]:
         try:
             db.execute(f'ALTER TABLE facturas ADD COLUMN {col} {tipo}')
         except Exception:
@@ -415,7 +419,7 @@ def index():
     pendientes = db.execute("SELECT COUNT(*) FROM facturas WHERE estado='pendiente'").fetchone()[0]
     vencidas   = db.execute("SELECT COUNT(*) FROM facturas WHERE estado='vencido'").fetchone()[0]
     pagadas    = db.execute("SELECT COUNT(*) FROM facturas WHERE estado='pagado'").fetchone()[0]
-    total_pend = db.execute("SELECT COALESCE(SUM(total),0) FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0]
+    total_pend = db.execute("SELECT COALESCE(SUM(monto_pagar_usd),0) FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0]
     hoy        = date.today().isoformat()
     return render_template('index.html', facturas=facturas, pendientes=pendientes,
                            vencidas=vencidas, pagadas=pagadas,
@@ -453,14 +457,18 @@ def guardar_factura():
     monto_iva_usd = round(monto_iva / tasa, 4)
     total_usd     = round(total     / tasa, 4)
 
+    monto_factura_usd = float(d.get('monto_factura_usd') or 0)
+    monto_pagar_usd   = float(d.get('monto_pagar_usd')   or 0)
+
     cur = db.execute("""
         INSERT INTO facturas
             (empresa_propia, rif_propio, proveedor, rif_proveedor,
              tipo_doc, num_documento, fecha, fecha_vence, hora,
              subtotal, flete, descuento, monto_iva, total,
              tasa_cambio, subtotal_usd, monto_iva_usd, total_usd,
+             monto_factura_usd, monto_pagar_usd,
              moneda, estado, notas, archivo_pdf, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, (
         d.get('empresa_propia',''), d.get('rif_propio',''),
         d.get('proveedor',''),      d.get('rif_proveedor',''),
@@ -469,6 +477,7 @@ def guardar_factura():
         d.get('hora',''),
         subtotal, flete, descuento, monto_iva, total,
         tasa, subtotal_usd, monto_iva_usd, total_usd,
+        monto_factura_usd, monto_pagar_usd,
         d.get('moneda','VES'), d.get('estado','pendiente'),
         d.get('notas',''),    d.get('archivo_pdf',''),
         now, now
@@ -685,12 +694,63 @@ def imprimir_items():
 
 @app.route('/actualizar_estado/<int:fid>', methods=['POST'])
 def actualizar_estado(fid):
-    nuevo = request.json.get('estado')
+    d      = request.json or {}
+    nuevo  = d.get('estado')
+    metodo = d.get('metodo_pago', None)
     if nuevo not in ('pendiente', 'pagado', 'vencido'):
         return jsonify({'error': 'Estado inválido'}), 400
     db = get_db()
-    db.execute("UPDATE facturas SET estado=?, updated_at=? WHERE id=?",
-               (nuevo, datetime.utcnow().isoformat(), fid))
+    num_comp = d.get('num_comprobante', None)
+    db.execute("UPDATE facturas SET estado=?, metodo_pago=?, num_comprobante=?, updated_at=? WHERE id=?",
+               (nuevo, metodo, num_comp, datetime.utcnow().isoformat(), fid))
+    db.commit()
+    return jsonify({'ok': True})
+
+@app.route('/comprobante/<path:filename>')
+def ver_comprobante(filename):
+    from flask import send_from_directory, abort
+    ruta = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(ruta):
+        abort(404)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/api/factura/<int:fid>/comprobante', methods=['POST'])
+def subir_comprobante(fid):
+    if 'archivo' not in request.files:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    archivo = request.files['archivo']
+    ext = os.path.splitext(archivo.filename)[1].lower()
+    if ext not in ('.pdf', '.png', '.jpg', '.jpeg', '.webp'):
+        return jsonify({'error': 'Formato no soportado'}), 400
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    nombre = f"comp_{fid}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+    ruta   = os.path.join(app.config['UPLOAD_FOLDER'], nombre)
+    archivo.save(ruta)
+    db = get_db()
+    db.execute("UPDATE facturas SET archivo_comprobante=? WHERE id=?", (nombre, fid))
+    db.commit()
+    return jsonify({'ok': True, 'archivo': nombre})
+
+@app.route('/api/factura/<int:fid>', methods=['PUT'])
+def editar_factura(fid):
+    d  = request.json or {}
+    db = get_db()
+    db.execute("""
+        UPDATE facturas SET
+            proveedor=?, rif_proveedor=?, empresa_propia=?, rif_propio=?,
+            num_documento=?, fecha=?, fecha_vence=?,
+            monto_factura_usd=?, monto_pagar_usd=?,
+            notas=?, updated_at=?
+        WHERE id=?
+    """, (
+        d.get('proveedor',''), d.get('rif_proveedor',''),
+        d.get('empresa_propia',''), d.get('rif_propio',''),
+        d.get('num_documento',''), d.get('fecha'), d.get('fecha_vence'),
+        float(d.get('monto_factura_usd') or 0),
+        float(d.get('monto_pagar_usd')   or 0),
+        d.get('notas',''), datetime.utcnow().isoformat(),
+        fid
+    ))
     db.commit()
     return jsonify({'ok': True})
 
@@ -759,8 +819,8 @@ def api_dashboard():
         'pendientes':       db.execute("SELECT COUNT(*) FROM facturas WHERE estado='pendiente'").fetchone()[0],
         'vencidas':         db.execute("SELECT COUNT(*) FROM facturas WHERE estado='vencido'").fetchone()[0],
         'pagadas':          db.execute("SELECT COUNT(*) FROM facturas WHERE estado='pagado'").fetchone()[0],
-        'total_pendiente':  db.execute("SELECT COALESCE(SUM(total),0)     FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
-        'total_pend_usd':   db.execute("SELECT COALESCE(SUM(total_usd),0) FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
+        'total_pendiente':  db.execute("SELECT COALESCE(SUM(monto_pagar_usd),0) FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
+        'total_pend_usd':   db.execute("SELECT COALESCE(SUM(monto_pagar_usd),0) FROM facturas WHERE estado IN ('pendiente','vencido')").fetchone()[0],
     })
 
 @app.route('/api/windows_printers')
