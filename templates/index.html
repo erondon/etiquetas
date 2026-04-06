@@ -1340,7 +1340,7 @@ function previewItem(idx) {
 
     <!-- Precio USD (grande) -->
     <text x="10" y="158" font-size="52" fill="#000" font-weight="bold"
-          font-family="Arial,sans-serif">$ ${esc(pvUSD)}</text>
+          font-family="Arial,sans-serif">REF ${esc(pvUSD)}</text>
 
     <!-- Línea -->
     <line x1="8" y1="170" x2="${W-8}" y2="170" stroke="#ddd" stroke-width="1"/>
@@ -1389,7 +1389,7 @@ function generarZPLCliente(item, factura, precioVenta, ts) {
     `^CF0,30\n^FO10,18^FD${codigo}^FS`,
     `^CF0,22\n^FO10,56^FD${desc}^FS`,
     '^FO4,86^GB448,0,1^FS',
-    `^CF0,60\n^FO10,100^FD$ ${pvUSD}^FS`,
+    `^CF0,60\n^FO10,100^FDREF ${pvUSD}^FS`,
     '^FO4,172^GB448,0,1^FS',
     `^CF0,20\n^FO10,190^FD${ref}^FS`,
     `^CF0,24\n^FO240,186^FD${mur}^FS`,

@@ -343,7 +343,7 @@ def generar_zpl_item(item, factura, precio_venta, timestamp_unix):
         # Línea separadora
         f'^FO4,86^GB448,0,1^FS\n'
         # Precio de venta en USD (grande)
-        f'^CF0,60\n^FO10,100^FD$ {pv_usd_str}^FS\n'
+        f'^CF0,60\n^FO10,100^FDREF {pv_usd_str}^FS\n'
         # Línea separadora
         f'^FO4,172^GB448,0,1^FS\n'
         # Referencia  |  MURCIELAGO  |  timestamp
