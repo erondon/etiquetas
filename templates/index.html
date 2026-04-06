@@ -644,7 +644,7 @@ select option{background:var(--surface2)}
           <input type="text" id="pi_com" placeholder="COM3 o /dev/usb/lp0" style="width:180px;padding:7px 10px;font-size:12px">
         </div>
         <div id="pi-windows" style="display:none">
-          <input type="text" id="pi_wname" placeholder="Nombre impresora Windows" value="Zebra TechnologiesZTC LP 2824 Plus" style="width:280px;padding:7px 10px;font-size:12px">
+          <input type="text" id="pi_wname" placeholder="Nombre impresora Windows" value="ZDesigner LP 2824 Plus (ZPL)" style="width:280px;padding:7px 10px;font-size:12px">
         </div>
         <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
           <div id="tsDisplay" style="font-size:11px;color:var(--muted);font-family:var(--mono)"></div>
@@ -1393,7 +1393,7 @@ function generarZPLCliente(item, factura, precioVenta, ts) {
     '^FO4,172^GB448,0,1^FS',
     `^CF0,20\n^FO10,190^FD${ref}^FS`,
     `^CF0,24\n^FO240,186^FD${mur}^FS`,
-    `^CF0,16\n^FO370,194^FD${ts}^FS`,
+    `^CF0,16\n^FO330,194^FD${ts}^FS`,
     '^FO4,208^GB448,0,1^FS',
     `^BY2,3,80\n^FO10,214^BCN,80,N,N^FD${bc}^FS`,
     '^XZ'

@@ -349,7 +349,7 @@ def generar_zpl_item(item, factura, precio_venta, timestamp_unix):
         # Referencia  |  MURCIELAGO  |  timestamp
         f'^CF0,20\n^FO10,190^FD{referencia}^FS\n'
         f'^CF0,24\n^FO240,186^FD{murcielago}^FS\n'
-        f'^CF0,16\n^FO370,194^FD{ts}^FS\n'
+        f'^CF0,16\n^FO330,194^FD{ts}^FS\n'
         # Línea separadora barcode
         f'^FO4,208^GB448,0,1^FS\n'
         # Código de barras del producto
