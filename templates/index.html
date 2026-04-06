@@ -203,6 +203,8 @@ select option{background:var(--surface2)}
           Catálogo <span id="catalogoBadge" style="display:none;background:var(--accent2);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:2px"></span>
         </button>
         <button class="btn btn-secondary" onclick="openManualModal()">+ Nuevo</button>
+        <button class="btn btn-secondary" onclick="openModal('importModal')" title="Importar desde Excel">📥</button>
+        <button class="btn btn-secondary" onclick="openModal('customLabelModal')" title="Etiqueta custom">🏷</button>
       </div>
     </header>
 
@@ -298,6 +300,8 @@ select option{background:var(--surface2)}
                   <button class="btn btn-secondary btn-sm" title="Editar" onclick="openEditModal({{ f.id }})">✏</button>
                   {% if f.estado != 'pagado' %}
                   <button class="btn btn-success btn-sm" onclick="openPagoModal({{ f.id }}, this)">✓ Pagado</button>
+                  {% else %}
+                  <button class="btn btn-secondary btn-sm" onclick="revertirPendiente({{ f.id }}, this)">↩ Pendiente</button>
                   {% endif %}
                   <button class="btn btn-danger btn-sm btn-icon" title="Eliminar"
                     onclick="eliminarDoc({{ f.id }},this)">
@@ -353,7 +357,11 @@ select option{background:var(--surface2)}
 
           <div class="form-group">
             <label>Empresa emisora (tu empresa)</label>
-            <input type="text" id="f_empresa_propia" readonly>
+            <select id="f_empresa_propia">
+              <option value="">— Seleccionar —</option>
+              <option value="EURO REPUESTO, C.A">EURO REPUESTO, C.A</option>
+              <option value="LA CASA DEL FIAT, C.A">LA CASA DEL FIAT, C.A</option>
+            </select>
           </div>
           <div class="form-group">
             <label>RIF de la empresa</label>
@@ -503,7 +511,11 @@ select option{background:var(--surface2)}
       <div class="form-grid">
         <div class="form-group">
           <label>Empresa emisora</label>
-          <input type="text" id="m_empresa_propia" placeholder="Tu empresa">
+          <select id="m_empresa_propia">
+              <option value="">— Seleccionar —</option>
+              <option value="EURO REPUESTO, C.A">EURO REPUESTO, C.A</option>
+              <option value="LA CASA DEL FIAT, C.A">LA CASA DEL FIAT, C.A</option>
+            </select>
         </div>
         <div class="form-group">
           <label>RIF empresa</label>
@@ -762,6 +774,98 @@ select option{background:var(--surface2)}
   </div>
 </div>
 
+<!-- ═══════════════════ MODAL: ETIQUETA CUSTOM ═══════════════════ -->
+<div class="overlay" id="customLabelModal">
+  <div class="modal" style="width:min(960px,97vw);max-height:95vh">
+    <div class="modal-head">
+      <div class="modal-title">🏷 Etiqueta Custom</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('customLabelModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div style="display:grid;grid-template-columns:1fr 480px;min-height:380px">
+
+        <!-- Formulario -->
+        <div style="padding:24px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Código</label>
+              <input type="text" id="cl_codigo" placeholder="Ej: ABC-123" oninput="previewCustom()" style="font-family:var(--mono)">
+            </div>
+            <div class="form-group">
+              <label>Cantidad a imprimir</label>
+              <input type="number" id="cl_cantidad" value="1" min="1" oninput="previewCustom()">
+            </div>
+            <div class="form-group full">
+              <label>Descripción</label>
+              <input type="text" id="cl_descripcion" placeholder="Descripción del producto" oninput="previewCustom()">
+            </div>
+            <div class="form-group">
+              <label>Precio venta (USD)</label>
+              <input type="number" id="cl_precio" step="0.01" min="0" placeholder="0.00"
+                     oninput="previewCustom()" style="color:var(--success);font-weight:600">
+            </div>
+            <div class="form-group">
+              <label>Costo (USD) <span style="font-size:10px;color:var(--muted)">para MURCIELAGO</span></label>
+              <input type="number" id="cl_costo" step="0.01" min="0" placeholder="0.00" oninput="previewCustom()">
+            </div>
+            <div class="form-group full">
+              <label>Referencia <span style="font-size:10px;color:var(--muted)">opcional</span></label>
+              <input type="text" id="cl_referencia" placeholder="Ej: 8121-42089" oninput="previewCustom()" style="font-family:var(--mono)">
+            </div>
+          </div>
+          <!-- Conexión impresora -->
+          <div style="border-top:1px solid var(--border);padding-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;gap:6px">
+              <div class="radio-opt selected" id="cl-opt-windows" onclick="clSelectConn('windows')" style="padding:6px 10px;flex:none">
+                <div class="radio-label" style="font-size:12px">💻 Windows</div>
+              </div>
+              <div class="radio-opt" id="cl-opt-red" onclick="clSelectConn('red')" style="padding:6px 10px;flex:none">
+                <div class="radio-label" style="font-size:12px">🌐 Red</div>
+              </div>
+              <div class="radio-opt" id="cl-opt-usb" onclick="clSelectConn('usb')" style="padding:6px 10px;flex:none">
+                <div class="radio-label" style="font-size:12px">🔌 USB</div>
+              </div>
+            </div>
+            <div id="cl-windows" style="flex:1">
+              <input type="text" id="cl_wname" value="ZDesigner LP 2824 Plus (ZPL)" style="width:100%;padding:6px 10px;font-size:12px">
+            </div>
+            <div id="cl-net" style="display:none;gap:6px;flex:1">
+              <input type="text" id="cl_ip" placeholder="IP" style="width:130px;padding:6px 10px;font-size:12px">
+              <input type="text" id="cl_port" value="9100" style="width:60px;padding:6px 10px;font-size:12px">
+            </div>
+            <div id="cl-usb" style="display:none;flex:1">
+              <input type="text" id="cl_com" placeholder="COM3" style="width:140px;padding:6px 10px;font-size:12px">
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div style="display:flex;flex-direction:column;background:var(--surface2);border-left:1px solid var(--border)">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Preview</div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:12px;overflow:auto">
+            <div id="clPreviewBox" style="background:#f5f5f5;border-radius:4px;max-width:100%;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.4)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="456" height="352" style="background:#f5f5f5;display:block">
+                <text x="228" y="180" text-anchor="middle" font-size="12" fill="#888">Completa los campos</text>
+              </svg>
+            </div>
+          </div>
+          <details style="padding:10px 14px;border-top:1px solid var(--border)">
+            <summary style="font-size:11px;color:var(--muted);cursor:pointer;user-select:none">Ver ZPL</summary>
+            <pre id="clZplBox" style="margin-top:6px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:10px;color:#7ae787;line-height:1.5;max-height:120px;overflow:auto;white-space:pre"></pre>
+          </details>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('customLabelModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="imprimirCustom()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Imprimir
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL: EDITAR FACTURA ═══════════════════ -->
 <div class="overlay" id="editModal">
   <div class="modal" style="width:min(620px,95vw)">
@@ -782,7 +886,11 @@ select option{background:var(--surface2)}
         </div>
         <div class="form-group">
           <label>Sede (empresa emisora)</label>
-          <input type="text" id="e_empresa_propia">
+          <select id="e_empresa_propia">
+              <option value="">— Seleccionar —</option>
+              <option value="EURO REPUESTO, C.A">EURO REPUESTO, C.A</option>
+              <option value="LA CASA DEL FIAT, C.A">LA CASA DEL FIAT, C.A</option>
+            </select>
         </div>
         <div class="form-group">
           <label>RIF empresa</label>
@@ -860,6 +968,47 @@ select option{background:var(--surface2)}
     <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeModal('pagoModal')">Cancelar</button>
       <button class="btn btn-primary" id="btnConfirmarPago" onclick="confirmarPago()">✓ Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: IMPORTAR FACTURAS ═══════════════════ -->
+<div class="overlay" id="importModal">
+  <div class="modal" style="width:min(440px,95vw)">
+    <div class="modal-head">
+      <div class="modal-title">📥 Importar Facturas desde Excel</div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('importModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
+      <p style="font-size:12px;color:var(--muted)">
+        Columnas esperadas: <strong>A</strong> Fecha · <strong>B</strong> Proveedor ·
+        <strong>C</strong> # Factura · <strong>E</strong> Monto Full ·
+        <strong>H</strong> Monto a Pagar. Datos desde fila 2.
+      </p>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Sede</div>
+        <select id="import_sede" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px">
+          <option value="">— Sin especificar —</option>
+          <option value="EURO REPUESTO, C.A">EURO REPUESTO, C.A</option>
+          <option value="LA CASA DEL FIAT, C.A">LA CASA DEL FIAT, C.A</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Archivo Excel</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:12px 14px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span id="importFileName" style="font-size:12px;color:var(--muted)">Seleccionar .xls / .xlsx</span>
+          <input type="file" id="import_file" accept=".xlsx,.xls" style="display:none"
+                 onchange="document.getElementById('importFileName').textContent=this.files[0]?.name||'Seleccionar';document.getElementById('btnImportar').disabled=false">
+        </label>
+      </div>
+      <div id="importMsg" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('importModal')">Cancelar</button>
+      <button class="btn btn-primary" id="btnImportar" onclick="importarFacturas()" disabled>
+        📥 Importar
+      </button>
     </div>
   </div>
 </div>
@@ -1209,6 +1358,114 @@ function postDoc(data) {
 
 // ── Acciones tabla ────────────────────────────────────────────────────────
 let _pagoFid = null, _pagoBtn = null, _pagoMetodo = null;
+
+async function importarFacturas() {
+  const file = document.getElementById('import_file').files[0];
+  if (!file) return;
+  const sede = document.getElementById('import_sede').value;
+  const btn  = document.getElementById('btnImportar');
+  const msg  = document.getElementById('importMsg');
+  btn.disabled = true; btn.textContent = 'Importando...';
+  const fd = new FormData();
+  fd.append('excel', file);
+  fd.append('sede', sede);
+  try {
+    const res = await fetch('/api/importar_facturas', {method:'POST', body:fd}).then(r=>r.json());
+    msg.style.display = 'block';
+    if (res.ok) {
+      msg.style.cssText += ';background:rgba(62,207,142,0.1);border:1px solid rgba(62,207,142,0.3);color:var(--success)';
+      msg.textContent = res.mensaje + (res.omitidas ? ` (${res.omitidas} omitidas)` : '');
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      msg.style.cssText += ';background:rgba(240,90,90,0.1);border:1px solid rgba(240,90,90,0.3);color:var(--danger)';
+      msg.textContent = res.error || 'Error al importar';
+    }
+  } catch(e) {
+    msg.style.display='block'; msg.textContent='Error de conexión';
+  }
+  btn.disabled = false; btn.textContent = '📥 Importar';
+}
+
+let clConnMode = 'windows';
+function clSelectConn(modo) {
+  clConnMode = modo;
+  ['windows','red','usb'].forEach(m => {
+    document.getElementById(`cl-opt-${m}`).classList.toggle('selected', m === modo);
+    document.getElementById(`cl-${m}`).style.display = m === modo ? '' : 'none';
+  });
+}
+
+function previewCustom() {
+  const codigo  = (document.getElementById('cl_codigo')?.value || '').slice(0,20);
+  const desc    = (document.getElementById('cl_descripcion')?.value || '').slice(0,32);
+  const precio  = parseFloat(document.getElementById('cl_precio')?.value) || 0;
+  const costo   = parseFloat(document.getElementById('cl_costo')?.value)  || 0;
+  const cant    = parseInt(document.getElementById('cl_cantidad')?.value)  || 1;
+  const ref     = (document.getElementById('cl_referencia')?.value || '').slice(0,24);
+  const ts      = Math.floor(Date.now() / 1000);
+  const pvUSD   = precio.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const mur     = aMurcielago(costo);
+  const bc      = codigo.replace(/[^A-Z0-9]/gi,'').toUpperCase() || 'PROD';
+  const W = 456, H = 352;
+  const barsSVG = generarBarrasSVG(bc, 214, 80, 430, 16);
+
+  document.getElementById('clPreviewBox').innerHTML = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="background:#fff;display:block">
+    <rect x="2" y="2" width="${W-4}" height="${H-4}" rx="3" fill="white" stroke="#222" stroke-width="2"/>
+    <text x="10" y="38" font-size="23" fill="#111" font-weight="bold" font-family="'Courier New',monospace">${esc(codigo)}</text>
+    <text x="10" y="66" font-size="17" fill="#444" font-family="Arial,sans-serif">${esc(desc)}</text>
+    <line x1="8" y1="84" x2="${W-8}" y2="84" stroke="#ddd" stroke-width="1"/>
+    <text x="10" y="158" font-size="52" fill="#000" font-weight="bold" font-family="Arial,sans-serif">REF ${esc(pvUSD)}</text>
+    <line x1="8" y1="170" x2="${W-8}" y2="170" stroke="#ddd" stroke-width="1"/>
+    <text x="10" y="192" font-size="15" fill="#333" font-weight="600" font-family="'Courier New',monospace">${esc(ref)}</text>
+    <text x="240" y="192" font-size="18" fill="#111" font-weight="bold" font-family="'Courier New',monospace">${esc(mur)}</text>
+    <text x="${W-10}" y="192" font-size="11" fill="#aaa" text-anchor="end" font-family="'Courier New',monospace">${ts}</text>
+    <line x1="8" y1="206" x2="${W-8}" y2="206" stroke="#ddd" stroke-width="1"/>
+    ${barsSVG}
+    <text x="${W/2}" y="${H-6}" font-size="9" fill="#333" text-anchor="middle" font-family="'Courier New',monospace" letter-spacing="2">${esc(bc)}</text>
+  </svg>`;
+
+  const item    = {codigo, descripcion: desc, cantidad: cant, precio_unit: costo};
+  const factura = {tasa_cambio: 1, referencia: ref};
+  document.getElementById('clZplBox').textContent = generarZPLCliente(item, factura, precio, ts);
+}
+
+async function imprimirCustom() {
+  const codigo = document.getElementById('cl_codigo')?.value.trim();
+  if (!codigo) { toast('Ingresa el código', 'error'); return; }
+  let printer;
+  if (clConnMode === 'windows') {
+    printer = {modo:'windows', printer_name: document.getElementById('cl_wname').value.trim()};
+  } else if (clConnMode === 'red') {
+    printer = {modo:'red', ip: document.getElementById('cl_ip').value.trim(), puerto: parseInt(document.getElementById('cl_port').value)||9100};
+  } else {
+    printer = {modo:'usb', port: document.getElementById('cl_com').value.trim()};
+  }
+  const payload = {
+    codigo,
+    descripcion:  document.getElementById('cl_descripcion').value.trim(),
+    precio_venta: parseFloat(document.getElementById('cl_precio').value)   || 0,
+    costo_usd:    parseFloat(document.getElementById('cl_costo').value)    || 0,
+    cantidad:     parseInt(document.getElementById('cl_cantidad').value)   || 1,
+    referencia:   document.getElementById('cl_referencia').value.trim(),
+    printer,
+  };
+  const res = await fetch('/imprimir_custom', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  }).then(r=>r.json());
+  if (res.ok) toast(`✅ Impreso · TS: ${res.timestamp}`, 'success');
+  else toast('❌ ' + res.mensaje, 'error');
+}
+
+function revertirPendiente(id, btn) {
+  if (!confirm('¿Revertir esta factura a Pendiente?')) return;
+  fetch(`/actualizar_estado/${id}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({estado:'pendiente', metodo_pago: null, num_comprobante: null})
+  }).then(r => r.json()).then(res => {
+    if (res.ok) { toast('Revertida a Pendiente', 'info'); setTimeout(() => location.reload(), 600); }
+  });
+}
 
 function openPagoModal(id, btn) {
   _pagoFid = id; _pagoBtn = btn; _pagoMetodo = null;

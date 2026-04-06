@@ -151,7 +151,13 @@ def parsear_pdf_a2(filepath):
     for line in t.splitlines():
         parte = line[:60].strip()
         if len(parte) > 3 and not re.match(r'^(COMPRA|FACTURA|Fecha|Pag|Hora|Rif|Tel)', parte, re.IGNORECASE):
-            d['empresa_propia'] = parte
+            raw = parte.upper()
+            if 'FIAT' in raw:
+                d['empresa_propia'] = 'LA CASA DEL FIAT, C.A'
+            elif 'EURO' in raw or 'REPUESTO' in raw:
+                d['empresa_propia'] = 'EURO REPUESTO, C.A'
+            else:
+                d['empresa_propia'] = parte
             break
 
     # ── Tipo de documento ────────────────────────────────────────────────────
@@ -692,6 +698,29 @@ def imprimir_items():
 
     return jsonify({'ok': ok, 'mensaje': msg, 'timestamp': ts, 'total_etiquetas': len(items_cfg)})
 
+@app.route('/imprimir_custom', methods=['POST'])
+def imprimir_custom():
+    d       = request.json or {}
+    cfg     = d.get('printer', {})
+    modo    = cfg.get('modo', 'windows')
+    item    = {'codigo': d.get('codigo',''), 'descripcion': d.get('descripcion',''),
+               'cantidad': int(d.get('cantidad', 1)), 'precio_unit': float(d.get('costo_usd', 0))}
+    factura = {'tasa_cambio': 1, 'referencia': d.get('referencia', '')}
+    ts      = int(datetime.utcnow().timestamp())
+    zpl     = generar_zpl_item(item, factura, float(d.get('precio_venta', 0)), ts)
+
+    if modo == 'red':
+        ip = cfg.get('ip','').strip()
+        if not ip: return jsonify({'error': 'Debe indicar la IP'}), 400
+        ok, msg = enviar_red(zpl, ip, cfg.get('puerto', 9100))
+    elif modo == 'windows':
+        pname = cfg.get('printer_name','').strip()
+        if not pname: return jsonify({'error': 'Debe indicar el nombre de la impresora'}), 400
+        ok, msg = enviar_windows(zpl, pname)
+    else:
+        ok, msg = enviar_usb(zpl, cfg.get('port', 'COM1'))
+    return jsonify({'ok': ok, 'mensaje': msg, 'timestamp': ts})
+
 @app.route('/actualizar_estado/<int:fid>', methods=['POST'])
 def actualizar_estado(fid):
     d      = request.json or {}
@@ -832,6 +861,94 @@ def windows_printers():
         return jsonify({'printers': printers})
     except Exception as e:
         return jsonify({'printers': [], 'error': str(e)})
+
+@app.route('/api/importar_facturas', methods=['POST'])
+def importar_facturas():
+    if 'excel' not in request.files:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    archivo = request.files['excel']
+    sede    = request.form.get('sede', '')
+    fname   = archivo.filename.lower()
+    if not fname.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'Solo se aceptan archivos Excel (.xlsx, .xls)'}), 400
+    try:
+        if fname.endswith('.xlsx'):
+            import openpyxl
+            wb   = openpyxl.load_workbook(archivo, read_only=True, data_only=True)
+            ws   = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+            wb.close()
+        else:
+            import xlrd
+            wb   = xlrd.open_workbook(file_contents=archivo.read())
+            ws   = wb.sheet_by_index(0)
+            rows = [tuple(ws.row_values(r)) for r in range(ws.nrows)]
+    except Exception as e:
+        return jsonify({'error': f'Error al leer el Excel: {e}'}), 400
+
+    data_rows = rows[1:]  # fila 2 en adelante
+    db  = get_db()
+    now = datetime.utcnow().isoformat()
+
+    def parse_fecha(val):
+        if not val: return None
+        # openpyxl devuelve datetime/date directamente
+        if hasattr(val, 'date'):
+            return val.date().isoformat()
+        if hasattr(val, 'isoformat') and not hasattr(val, 'date'):
+            return val.isoformat()
+        if isinstance(val, (int, float)):
+            try:
+                import openpyxl.utils.datetime as oxl
+                return oxl.from_excel(val).date().isoformat()
+            except: return None
+        s = str(val).strip()
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%m/%d/%Y'):
+            try: return datetime.strptime(s, fmt).date().isoformat()
+            except: pass
+        try: return s[:10]
+        except: return None
+
+    def parse_monto(val):
+        if val is None or val == '': return 0.0
+        try: return float(str(val).replace(',', '.'))
+        except: return 0.0
+
+    importadas = 0
+    omitidas   = 0
+    def normalizar_sede(val):
+        s = str(val or '').upper()
+        if 'FIAT' in s:    return 'LA CASA DEL FIAT, C.A'
+        if 'EURO' in s or 'REPUESTO' in s: return 'EURO REPUESTO, C.A'
+        return str(val or '').strip()
+
+    for row in data_rows:
+        if len(row) < 3: continue
+        fecha          = parse_fecha(row[0])              # A
+        proveedor      = str(row[1] or '').strip()        # B
+        num_documento  = str(row[2] or '').strip()        # C
+        monto_full     = parse_monto(row[4]) if len(row) > 4 else 0.0  # E
+        sede_row       = normalizar_sede(row[5]) if len(row) > 5 else sede  # F
+        monto_pagar    = parse_monto(row[7]) if len(row) > 7 else 0.0  # H
+        fecha_vence    = parse_fecha(row[8]) if len(row) > 8 else None  # I
+        empresa        = sede_row or sede
+        if not proveedor and not num_documento: continue
+        try:
+            db.execute("""
+                INSERT INTO facturas
+                    (proveedor, num_documento, fecha, fecha_vence, empresa_propia,
+                     monto_factura_usd, monto_pagar_usd,
+                     tipo_doc, moneda, estado, created_at, updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (proveedor, num_documento, fecha, fecha_vence, empresa,
+                  monto_full, monto_pagar,
+                  'COMPRA', 'USD', 'pendiente', now, now))
+            importadas += 1
+        except Exception:
+            omitidas += 1
+    db.commit()
+    return jsonify({'ok': True, 'importadas': importadas, 'omitidas': omitidas,
+                    'mensaje': f'{importadas} facturas importadas'})
 
 @app.route('/api/catalogo/stats')
 def catalogo_stats():
