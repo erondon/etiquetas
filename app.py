@@ -24,12 +24,7 @@ def close_connection(exception):
 
 def init_db():
     db = sqlite3.connect(app.config['DATABASE'])
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS productos_catalogo (
-            codigo      TEXT PRIMARY KEY,
-            descripcion TEXT NOT NULL
-        )
-    """)
+    db.execute('DROP TABLE IF EXISTS productos_catalogo')
     db.execute("""
         CREATE TABLE IF NOT EXISTS configuracion (
             clave TEXT PRIMARY KEY,
@@ -152,8 +147,7 @@ def windows_printers():
 
 @app.route('/api/catalogo/stats')
 def catalogo_stats():
-    db    = get_db()
-    count = db.execute('SELECT COUNT(*) FROM productos_catalogo').fetchone()[0]
+    count = get_db().execute('SELECT COUNT(*) FROM lote_productos').fetchone()[0]
     return jsonify({'count': count})
 
 @app.route('/api/catalogo/buscar')
@@ -161,22 +155,16 @@ def catalogo_buscar():
     codigo = request.args.get('codigo','').strip().upper()
     if not codigo:
         return jsonify({'descripcion': None})
-    db = get_db()
-    # Buscar primero en lote_productos (tiene todos los datos)
-    row = db.execute(
+    row = get_db().execute(
         'SELECT descripcion, cantidad, costo_usd, precio_venta FROM lote_productos WHERE codigo=?', (codigo,)
     ).fetchone()
     if row:
         return jsonify({'descripcion': row[0], 'cantidad': row[1],
                         'costo_usd': row[2], 'precio_venta': row[3]})
-    # Fallback: catálogo general (solo descripción)
-    row = db.execute(
-        'SELECT descripcion FROM productos_catalogo WHERE codigo=?', (codigo,)
-    ).fetchone()
-    return jsonify({'descripcion': row[0] if row else None})
+    return jsonify({'descripcion': None})
 
-@app.route('/api/catalogo/upload', methods=['POST'])
-def catalogo_upload():
+@app.route('/api/productos/importar', methods=['POST'])
+def productos_importar():
     if 'excel' not in request.files:
         return jsonify({'error': 'No se recibió archivo'}), 400
     archivo = request.files['excel']
@@ -197,22 +185,28 @@ def catalogo_upload():
             rows = [tuple(ws.row_values(r)) for r in range(ws.nrows)]
     except Exception as e:
         return jsonify({'error': f'Error al leer el Excel: {e}'}), 400
-    if not rows:
-        return jsonify({'error': 'El archivo está vacío'}), 400
-    data_rows = rows[12:]  # cabecera en fila 12, datos desde fila 13
-    db    = get_db()
-    count = 0
-    for row in data_rows:
-        if len(row) < 3: continue
+
+    db = get_db()
+    insertados, actualizados = 0, 0
+    for row in rows[1:]:
+        if len(row) < 2: continue
         codigo = str(row[0] or '').strip().upper()
-        desc   = str(row[2] or '').strip()
-        if codigo and desc:
-            db.execute('INSERT OR REPLACE INTO productos_catalogo (codigo, descripcion) VALUES (?,?)',
-                       (codigo, desc))
-            count += 1
+        desc   = str(row[1] or '').strip()
+        if not codigo or not desc: continue
+        existe = db.execute('SELECT 1 FROM lote_productos WHERE codigo=?', (codigo,)).fetchone()
+        if existe:
+            db.execute('UPDATE lote_productos SET descripcion=? WHERE codigo=?', (desc, codigo))
+            actualizados += 1
+        else:
+            db.execute(
+                'INSERT INTO lote_productos (codigo, descripcion, cantidad, costo_usd, precio_venta) VALUES (?,?,1,0,0)',
+                (codigo, desc)
+            )
+            insertados += 1
     db.commit()
-    return jsonify({'ok': True, 'cargados': count,
-                    'mensaje': f'{count} productos cargados al catálogo'})
+    total = db.execute('SELECT COUNT(*) FROM lote_productos').fetchone()[0]
+    return jsonify({'ok': True, 'insertados': insertados, 'actualizados': actualizados, 'total': total,
+                    'mensaje': f'{insertados} nuevos, {actualizados} actualizados — {total} productos en total'})
 
 @app.route('/api/lote/preview', methods=['POST'])
 def lote_preview():
@@ -257,10 +251,9 @@ def lote_preview():
                       'cantidad': cantidad, 'costo_usd': costo, 'precio_venta': precio})
 
     db = get_db()
-    db.execute('DELETE FROM lote_productos')
     for item in items:
         db.execute(
-            'INSERT INTO lote_productos (codigo, descripcion, cantidad, costo_usd, precio_venta) VALUES (?,?,?,?,?)',
+            'INSERT OR REPLACE INTO lote_productos (codigo, descripcion, cantidad, costo_usd, precio_venta) VALUES (?,?,?,?,?)',
             (item['codigo'], item['descripcion'], item['cantidad'], item['costo_usd'], item['precio_venta'])
         )
     db.commit()
@@ -277,8 +270,18 @@ def imprimir_custom():
         'cantidad':    int(d.get('cantidad', 1)),
         'referencia':  d.get('referencia', ''),
     }
+    precio_venta = d.get('precio_venta', 0)
+    costo_usd    = d.get('costo_usd', 0)
     ts  = int(datetime.utcnow().timestamp())
-    zpl = generar_zpl_item(item, d.get('precio_venta', 0), d.get('costo_usd', 0), ts)
+    zpl = generar_zpl_item(item, precio_venta, costo_usd, ts)
+
+    # Actualizar precio y costo en DB si el producto existe
+    db = get_db()
+    db.execute(
+        'UPDATE lote_productos SET costo_usd=?, precio_venta=? WHERE codigo=?',
+        (costo_usd, precio_venta, item['codigo'].strip().upper())
+    )
+    db.commit()
 
     if modo == 'red':
         ip = cfg.get('ip', '').strip()

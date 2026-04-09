@@ -139,7 +139,6 @@
   .modal-status.ok { color: #1a7f37; }
   .modal-status.err { color: #c0392b; }
 
-  .catalog-info { margin-top: 14px; font-size: .8rem; color: #666; background: #f5f6fa; border-radius: 6px; padding: 10px 14px; }
 
   /* ── Lote modal ── */
   .lote-modal { width: 700px; max-height: 90vh; overflow-y: auto; }
@@ -173,8 +172,8 @@
       <input type="number" id="tasaInput" min="0.01" step="0.01" placeholder="1.00">
       <button class="btn-tasa" onclick="guardarTasa()">Guardar</button>
     </div>
-    <button class="btn-catalog" onclick="abrirCatalogo()">&#128230; Cat&#225;logo</button>
-    <button class="btn-catalog" style="background:#2e7d9e;" onclick="abrirLote()">&#128222; Imprimir Excel</button>
+    <button class="btn-catalog" style="background:#5a4a8a;" onclick="abrirImportar()">&#128229; Importar Productos</button>
+    <button class="btn-catalog" onclick="abrirLote()">&#128222; Imprimir Excel</button>
   </div>
 </div>
 
@@ -280,20 +279,24 @@
 </div>
 
 <!-- ── Catalog modal ── -->
-<div class="modal-overlay" id="catalogModal">
-  <div class="modal">
-    <button class="close-btn" onclick="cerrarCatalogo()">&times;</button>
-    <h2>&#128230; Cat&#225;logo de Productos</h2>
-    <div class="catalog-info" id="catalogInfo">Cargando...</div>
 
-    <div style="margin-top:16px;">
-      <div class="drop-zone" id="dropZone" onclick="document.getElementById('excelFile').click()">
-        <input type="file" id="excelFile" accept=".xlsx,.xls" onchange="subirExcel(this.files[0])">
-        <div>&#128196; Arrastra o haz clic para subir un Excel</div>
-        <div style="font-size:.78rem;margin-top:6px;color:#aaa;">Col A=C&#243;digo &middot; C=Descripci&#243;n &middot; E=Cantidad &middot; G=Costo &middot; K=Precio &middot; Desde fila 2</div>
-      </div>
-      <div class="modal-status" id="modalStatus"></div>
+<!-- ── Importar modal ── -->
+<div class="modal-overlay" id="importarModal">
+  <div class="modal" style="width:460px;">
+    <button class="close-btn" onclick="cerrarImportar()">&times;</button>
+    <h2>&#128229; Importar Productos</h2>
+    <p style="font-size:.83rem;color:#666;margin-bottom:14px;">
+      Agrega o actualiza productos en masa. Los existentes se actualizan, los nuevos se agregan.<br>
+      <strong>Col A</strong>=C&#243;d &middot; <strong>B</strong>=Desc &middot; <strong>E</strong>=Cant &middot; <strong>G</strong>=Costo(USD) &middot; <strong>K</strong>=Precio(USD) &middot; desde fila 2
+    </p>
+    <input type="file" id="importarFile" accept=".xlsx,.xls" style="display:none" onchange="ejecutarImportar(this.files[0])">
+    <div style="text-align:center;margin:16px 0;">
+      <button onclick="document.getElementById('importarFile').click()"
+              style="padding:12px 32px;background:#5a4a8a;color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:600;cursor:pointer;">
+        &#128196; Seleccionar Excel
+      </button>
     </div>
+    <div id="importarStatus" style="font-size:.85rem;min-height:20px;text-align:center;"></div>
   </div>
 </div>
 
@@ -382,6 +385,8 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 var activePrinterTab = 'windows';
 var tasa = 1.0;
+var NS = 'http://www.w3.org/2000/svg';
+var MUR_MAP = {'0':'O','1':'M','2':'U','3':'R','4':'C','5':'I','6':'E','7':'L','8':'A','9':'G'};
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init() {
@@ -428,7 +433,6 @@ function buscarCatalogo() {
           document.getElementById('fDescripcion').value = d.descripcion;
           if (d.precio_venta != null) document.getElementById('fPrecio').value = d.precio_venta;
           if (d.costo_usd    != null) document.getElementById('fCosto').value  = d.costo_usd;
-          if (d.cantidad     != null) document.getElementById('fCantidad').value = d.cantidad;
           hint.textContent = '\u2713 Producto cargado automáticamente';
           hint.className = 'catalog-hint catalog-hit';
           actualizarPreview();
@@ -441,7 +445,6 @@ function buscarCatalogo() {
 }
 
 // ── Murcielago ────────────────────────────────────────────────────────────────
-var MUR_MAP = {'0':'O','1':'M','2':'U','3':'R','4':'C','5':'I','6':'E','7':'L','8':'A','9':'G'};
 function aMurcielago(costoUsd) {
   var dec    = costoUsd - Math.floor(costoUsd);
   var entero = dec > 0.5 ? Math.ceil(costoUsd) : Math.floor(costoUsd);
@@ -450,8 +453,6 @@ function aMurcielago(costoUsd) {
 }
 
 // ── SVG Preview ───────────────────────────────────────────────────────────────
-var NS = 'http://www.w3.org/2000/svg';
-
 function svgEl(tag, attrs, text) {
   var el = document.createElementNS(NS, tag);
   for (var k in attrs) el.setAttribute(k, attrs[k]);
@@ -466,10 +467,12 @@ function actualizarPreview() {
     var descripcion = (document.getElementById('fDescripcion').value || '').slice(0, 32);
     var precio      = parseFloat(document.getElementById('fPrecio').value || 0) || 0;
     var costo       = parseFloat(document.getElementById('fCosto').value  || 0) || 0;
-    var proveedor  = document.getElementById('fProveedor').value || '';
-  var factura    = (document.getElementById('fFactura').value || '').trim();
-  var referencia = (proveedor && factura) ? proveedor + '-' + factura
-                 : proveedor || factura;
+    var provEl     = document.getElementById('fProveedor');
+    var factEl     = document.getElementById('fFactura');
+    var proveedor  = provEl ? provEl.value || '' : '';
+    var factura    = factEl ? (factEl.value || '').trim() : '';
+    var referencia = (proveedor && factura) ? proveedor + '-' + factura
+                   : proveedor || factura;
 
     var pvStr      = precio.toFixed(2);
     var murcielago = aMurcielago(costo);
@@ -508,7 +511,7 @@ function actualizarPreview() {
     container.innerHTML = '';
     container.appendChild(svg);
   } catch(e) {
-    container.innerHTML = '<div style="color:red;padding:10px;font-size:.8rem;">Error preview: ' + e.message + '</div>';
+    container.innerHTML = '<div style="color:red;padding:10px;font-size:.75rem;word-break:break-all;">Error: ' + e.message + '<br>' + (e.stack || '').split('\n').slice(0,3).join('<br>') + '</div>';
   }
 }
 
@@ -617,58 +620,6 @@ function seleccionarImpresora(name) {
   document.getElementById('printerList').style.display = 'none';
 }
 
-// ── Catalog modal ─────────────────────────────────────────────────────────────
-function abrirCatalogo() {
-  document.getElementById('catalogModal').classList.add('open');
-  fetch('/api/catalogo/stats')
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      document.getElementById('catalogInfo').textContent = d.count + ' productos en el cat\u00e1logo.';
-    }).catch(function(){
-      document.getElementById('catalogInfo').textContent = 'Error al conectar.';
-    });
-}
-
-function cerrarCatalogo() {
-  document.getElementById('catalogModal').classList.remove('open');
-}
-
-// Drag & drop
-var dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', function(e){ e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', function(){ dropZone.classList.remove('drag-over'); });
-dropZone.addEventListener('drop', function(e){
-  e.preventDefault(); dropZone.classList.remove('drag-over');
-  var f = e.dataTransfer.files[0];
-  if (f) subirExcel(f);
-});
-
-function subirExcel(file) {
-  if (!file) return;
-  var ms = document.getElementById('modalStatus');
-  ms.textContent = 'Subiendo...'; ms.className = 'modal-status';
-
-  var fd = new FormData();
-  fd.append('excel', file);
-  fetch('/api/catalogo/upload', { method: 'POST', body: fd })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (d.ok) {
-        ms.textContent = '\u2713 ' + d.mensaje; ms.className = 'modal-status ok';
-        document.getElementById('catalogInfo').textContent = d.cargados + ' productos en el cat\u00e1logo.';
-      } else {
-        ms.textContent = '\u2717 ' + (d.error || 'Error'); ms.className = 'modal-status err';
-      }
-    }).catch(function(e){
-      ms.textContent = '\u2717 Error de red: ' + e.message; ms.className = 'modal-status err';
-    });
-  document.getElementById('excelFile').value = '';
-}
-
-// Close modal on overlay click
-document.getElementById('catalogModal').addEventListener('click', function(e){
-  if (e.target === this) cerrarCatalogo();
-});
 
 // ── Lote (batch print) ────────────────────────────────────────────────────────
 var loteItems = [];
@@ -723,7 +674,7 @@ function renderLoteTable() {
       '<td><input type="checkbox" class="skip-cb" checked data-idx="' + i + '" onchange="toggleLoteRow(' + i + ',this.checked)"></td>' +
       '<td>' + esc(item.codigo) + '</td>' +
       '<td>' + esc(item.descripcion) + '</td>' +
-      '<td>' + item.cantidad + '</td>' +
+      '<td><input type="number" min="1" value="' + item.cantidad + '" style="width:54px;padding:3px 5px;border:1px solid #d0d5dd;border-radius:4px;font-size:.82rem;" onchange="loteItems[' + i + '].cantidad=Math.max(1,parseInt(this.value)||1);actualizarResumen()"></td>' +
       '<td>' + item.costo_usd.toFixed(2) + '</td>' +
       '<td>' + item.precio_venta.toFixed(2) + '</td>' +
       '</tr>';
@@ -916,6 +867,37 @@ document.getElementById('provModal').addEventListener('click', function(e){
 
 // Cargar proveedores al inicio
 cargarProveedores();
+
+// ── Importar productos ────────────────────────────────────────────────────────
+function abrirImportar() {
+  document.getElementById('importarStatus').textContent = '';
+  document.getElementById('importarModal').classList.add('open');
+}
+function cerrarImportar() {
+  document.getElementById('importarModal').classList.remove('open');
+}
+function ejecutarImportar(file) {
+  if (!file) return;
+  var st = document.getElementById('importarStatus');
+  st.textContent = 'Procesando...'; st.style.color = '#555';
+  var fd = new FormData();
+  fd.append('excel', file);
+  fetch('/api/productos/importar', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      document.getElementById('importarFile').value = '';
+      if (d.ok) {
+        st.textContent = '\u2713 ' + d.mensaje; st.style.color = '#1a7f37';
+      } else {
+        st.textContent = '\u2717 ' + (d.error || 'Error'); st.style.color = '#c0392b';
+      }
+    }).catch(function(e){
+      st.textContent = '\u2717 Error: ' + e.message; st.style.color = '#c0392b';
+    });
+}
+document.getElementById('importarModal').addEventListener('click', function(e){
+  if (e.target === this) cerrarImportar();
+});
 </script>
 </body>
 </html>
