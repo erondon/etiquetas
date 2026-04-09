@@ -1,154 +1,82 @@
-# CxP Manager — Cuentas por Pagar con Etiquetas Zebra
+# Zebra Label Manager
 
-Aplicación web Flask para gestionar cuentas por pagar, cargar PDFs de A2 Softway e imprimir etiquetas en impresora Zebra ZD2824 Plus.
+Aplicación web para generar e imprimir etiquetas Zebra ZPL con catálogo de productos, codificación MURCIELAGO y gestión de proveedores.
 
----
+## Requisitos
 
-## Requisitos del sistema
-
-- Python 3.9 o superior
-- pip
-- Impresora Zebra ZD2824 Plus (conectada por red TCP/IP o USB)
-
----
+- Python 3.8+
+- Impresora Zebra (LP 2824 Plus o compatible)
 
 ## Instalación
 
-### 1. Clonar / copiar la carpeta del proyecto
-
-```bash
-cd cxp_app
-```
-
-### 2. Crear entorno virtual (recomendado)
-
-```bash
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# Linux / macOS
-source venv/bin/activate
-```
-
-### 3. Instalar dependencias
-
 ```bash
 pip install -r requirements.txt
-```
-
----
-
-## Ejecutar la aplicación
-
-```bash
 python app.py
 ```
 
-Abre el navegador en: **http://localhost:5000**
+Abre el navegador en `http://localhost:5000`
 
----
+## Funciones
 
-## Uso
+### Nueva Etiqueta
+Crea una etiqueta individual. Al ingresar el código, se autocompletan descripción, precio y costo desde la base de datos. La referencia se construye como `CODIGO_PROVEEDOR-FACTURA`.
 
-### Cargar factura desde PDF (A2 Softway)
+### Imprimir Excel
+Carga un Excel para imprimir etiquetas en lote. Las cantidades son editables por fila antes de imprimir.
 
-1. Haz clic en **Cargar PDF** (botón amarillo arriba a la derecha)
-2. Arrastra o selecciona el PDF generado por A2 Softway
-3. La aplicación extrae automáticamente:
-   - Proveedor y RIF
-   - Número de factura
-   - Fechas de emisión y vencimiento
-   - Montos (subtotal, IVA, total)
-   - Moneda (VES, USD, EUR)
-4. Revisa y corrige los datos si es necesario
-5. Haz clic en **Guardar Factura**
+**Columnas esperadas:**
+| Columna | Dato |
+|---------|------|
+| A | Código |
+| B | Descripción |
+| E | Cantidad |
+| G | Costo (USD) |
+| K | Precio de venta (USD) |
 
-### Crear factura manualmente
+> Datos desde la fila 2 (fila 1 = cabecera)
 
-1. Haz clic en **Nueva** (botón secundario)
-2. Llena el formulario
-3. Guarda
+### Importar Productos
+Carga masiva de productos desde un Excel con solo dos columnas: **A = Código**, **B = Descripción**. Agrega productos nuevos y actualiza los existentes sin borrar nada.
 
-### Gestión de facturas
+### Proveedores
+Gestión de proveedores con código único de 4 dígitos generado automáticamente. El código se usa como prefijo en la referencia de la etiqueta (`CODIGO-FACTURA`).
 
-- **Filtrar** por estado: Todos / Pendiente / Vencido / Pagado
-- **Buscar** por proveedor, N° factura o RIF
-- **Marcar como Pagado** con un clic
-- **Eliminar** factura
+## Formato de etiqueta
 
-### Imprimir etiqueta Zebra
-
-1. Haz clic en el ícono de impresora en la fila de la factura
-2. Verifica la vista previa de la etiqueta
-3. Selecciona el modo de conexión:
-   - **Red (TCP/IP)**: Ingresa la IP de la impresora (ej: `192.168.1.100`) y puerto `9100`
-   - **USB/COM**: Ingresa el puerto (ej: `COM3` en Windows, `/dev/usb/lp0` en Linux)
-4. Haz clic en **Imprimir**
-
-### Configurar impresora por defecto
-
-Haz clic en **Configurar** en la barra lateral izquierda (junto al nombre de la impresora) para guardar la configuración de conexión.
-
----
-
-## Configurar la Zebra ZD2824 Plus por red
-
-En la impresora:
-1. Imprime la página de configuración (mantén el botón Feed al encender)
-2. Anota la IP asignada por DHCP o configura una IP fija
-3. En la aplicación, ingresa esa IP con puerto `9100`
-
-Para conexión USB en Windows:
-- El puerto suele ser `COM3`, `COM4`, etc.
-- Verifica en Administrador de dispositivos → Puertos COM y LPT
-
----
-
-## Estructura del proyecto
+- **Tamaño:** 57 mm × 44 mm (456 × 352 dots @ 203 DPI)
+- **ZPL:** generado en servidor y cliente (preview SVG en tiempo real)
+- **Codificación MURCIELAGO:** el costo en USD se codifica en la etiqueta
 
 ```
-cxp_app/
-├── app.py              ← Aplicación Flask principal
-├── requirements.txt    ← Dependencias Python
-├── README.md
-├── instance/
-│   └── cuentas_pagar.db  ← Base de datos SQLite (auto-generada)
-├── uploads/              ← PDFs cargados (auto-generada)
+M=1  U=2  R=3  C=4  I=5
+E=6  L=7  A=8  G=9  O=0
+```
+
+Ejemplo: USD 25 → `UE`
+
+## Modos de impresión
+
+| Modo | Descripción |
+|------|-------------|
+| Windows | Imprime directo al spooler de Windows por nombre de impresora |
+| Red TCP/IP | Envía ZPL por socket a IP:puerto (default 9100) |
+| USB/COM | Envía ZPL por puerto serial (COM1, COM3, etc.) |
+
+## Base de datos (SQLite)
+
+| Tabla | Descripción |
+|-------|-------------|
+| `lote_productos` | Catálogo de productos con precios |
+| `proveedores` | Proveedores y sus códigos |
+| `configuracion` | Tasa de cambio y otros ajustes |
+
+## Estructura
+
+```
+files/
+├── app.py              # Backend Flask
+├── etiquetas.db        # Base de datos SQLite (auto-generada)
+├── requirements.txt
 └── templates/
-    └── index.html        ← Interfaz web
+    └── index.html      # UI completa (single-page)
 ```
-
----
-
-## Notas sobre la extracción de PDFs
-
-El parser de PDF está optimizado para el formato estándar de A2 Softway, buscando:
-- Patrones de RIF venezolano (J-, V-, E-, G-, C-)
-- Formatos de fecha venezolanos (DD/MM/YYYY)
-- Montos con separadores de miles punto y decimal coma (1.234.567,89)
-- Palabras clave en español: Factura, Proveedor, Subtotal, IVA, Total, Vence, etc.
-
-Si la extracción no es perfecta (p.ej. PDFs escaneados o con diseño inusual), puedes corregir los datos manualmente antes de guardar.
-
----
-
-## Formato de etiqueta ZPL
-
-La etiqueta generada para la Zebra ZD2824 Plus incluye:
-- Nombre del proveedor
-- RIF
-- Número de factura
-- Fechas de emisión y vencimiento
-- Total con moneda
-- Estado (PENDIENTE / VENCIDO / PAGADO)
-- Código de barras Code 128
-
-Tamaño de etiqueta configurado: **2.25" × 1.75"** a 203 DPI.
-
----
-
-## Licencia
-
-Uso interno empresarial.
