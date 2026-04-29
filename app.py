@@ -90,6 +90,50 @@ def generar_zpl_item(item, precio_venta, costo_usd, timestamp_unix):
         f'^XZ'
     )
 
+# ── ZPL Estantería ───────────────────────────────────────────────────────────
+def _band_zpl(text, y_start, band_h, avail_w=436, x=10, ratio=0.65, max_lines=2):
+    """Fit text into a label band at the largest possible font.
+    max_lines=1 forces single line (font shrinks to fit); =2 allows word-wrap."""
+    text = str(text or '').strip()
+    if not text:
+        return ''
+    n = len(text)
+    inner_h = band_h - 14  # 7 px padding top + bottom
+    f1 = min(inner_h, int(avail_w / (ratio * n)))
+    if f1 >= 50 or max_lines == 1:
+        f = max(20, f1)
+        y = y_start + (band_h - f) // 2
+        return f'^CF0,{f}\n^FO{x},{y}^FD{text}^FS\n'
+    # Two lines — split at word boundary closest to midpoint
+    mid = n // 2
+    spaces = [i for i, c in enumerate(text) if c == ' ']
+    cut = min(spaces, key=lambda i: abs(i - mid)) if spaces else mid
+    l1, l2 = text[:cut].strip(), text[cut:].strip()
+    longer = max(len(l1), len(l2), 1)
+    gap = 6
+    f2 = max(24, min((inner_h - gap) // 2, int(avail_w / (ratio * longer))))
+    cpl = int(avail_w / (ratio * f2))
+    l1, l2 = l1[:cpl], l2[:cpl]
+    y1 = y_start + (band_h - (2 * f2 + gap)) // 2
+    zpl = f'^CF0,{f2}\n^FO{x},{y1}^FD{l1}^FS\n'
+    if l2:
+        zpl += f'^CF0,{f2}\n^FO{x},{y1 + f2 + gap}^FD{l2}^FS\n'
+    return zpl
+
+
+def generar_zpl_estanteria(codigo, descripcion, referencia, cantidad):
+    cant = max(1, int(float(cantidad or 1)))
+    return (
+        f'^XA\n^PW456\n^LL352\n^PQ{cant}\n'
+        f'^FO4,4^GB448,344,2^FS\n'
+        f'^FO4,118^GB448,0,2^FS\n'
+        f'^FO4,234^GB448,0,2^FS\n'
+        + _band_zpl(codigo,      4,   114, max_lines=1)
+        + _band_zpl(descripcion, 118, 116, max_lines=2)
+        + _band_zpl(referencia,  234, 114, max_lines=1)
+        + '^XZ'
+    )
+
 # ── Envío ─────────────────────────────────────────────────────────────────────
 def enviar_red(zpl, ip, puerto=9100):
     try:
@@ -295,6 +339,66 @@ def imprimir_custom():
         ok, msg = enviar_usb(zpl, cfg.get('port', 'COM1'))
 
     return jsonify({'ok': ok, 'mensaje': msg, 'timestamp': ts})
+
+@app.route('/api/estanteria/preview', methods=['POST'])
+def estanteria_preview():
+    if 'excel' not in request.files:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    archivo = request.files['excel']
+    fname   = archivo.filename.lower()
+    if not fname.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'Solo se aceptan archivos Excel (.xlsx, .xls)'}), 400
+    try:
+        if fname.endswith('.xlsx'):
+            import openpyxl
+            wb   = openpyxl.load_workbook(archivo, read_only=True, data_only=True)
+            ws   = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+            wb.close()
+        else:
+            import xlrd
+            wb   = xlrd.open_workbook(file_contents=archivo.read())
+            ws   = wb.sheet_by_index(0)
+            rows = [tuple(ws.row_values(r)) for r in range(ws.nrows)]
+    except Exception as e:
+        return jsonify({'error': f'Error al leer el Excel: {e}'}), 400
+
+    items = []
+    for row in rows[1:]:
+        if len(row) < 2: continue
+        codigo = str(row[0] or '').strip().upper()
+        ref    = str(row[1] or '').strip() if len(row) > 1 else ''
+        desc   = str(row[2] or '').strip() if len(row) > 2 else ''
+        if not codigo: continue
+        try:
+            cant = max(1, int(float(row[3] or 1))) if len(row) > 3 else 1
+        except Exception:
+            cant = 1
+        items.append({'codigo': codigo, 'descripcion': desc, 'referencia': ref, 'cantidad': cant})
+    return jsonify({'ok': True, 'items': items})
+
+
+@app.route('/imprimir_estanteria', methods=['POST'])
+def imprimir_estanteria():
+    d    = request.json or {}
+    cfg  = d.get('printer', {})
+    modo = cfg.get('modo', 'windows')
+    zpl  = generar_zpl_estanteria(
+        d.get('codigo', ''), d.get('descripcion', ''),
+        d.get('referencia', ''), d.get('cantidad', 1)
+    )
+    if modo == 'red':
+        ip = cfg.get('ip', '').strip()
+        if not ip: return jsonify({'error': 'Debe indicar la IP'}), 400
+        ok, msg = enviar_red(zpl, ip, cfg.get('puerto', 9100))
+    elif modo == 'windows':
+        pname = cfg.get('printer_name', '').strip()
+        if not pname: return jsonify({'error': 'Debe indicar el nombre de la impresora'}), 400
+        ok, msg = enviar_windows(zpl, pname)
+    else:
+        ok, msg = enviar_usb(zpl, cfg.get('port', 'COM1'))
+    return jsonify({'ok': ok, 'mensaje': msg})
+
 
 @app.route('/api/proveedores', methods=['GET'])
 def proveedores_list():

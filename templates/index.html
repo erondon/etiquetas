@@ -173,6 +173,7 @@
       <button class="btn-tasa" onclick="guardarTasa()">Guardar</button>
     </div>
     <button class="btn-catalog" style="background:#5a4a8a;" onclick="abrirImportar()">&#128229; Importar Productos</button>
+    <button class="btn-catalog" style="background:#2e7d32;" onclick="abrirEstanteria()">&#128230; Estanter&iacute;a</button>
     <button class="btn-catalog" onclick="abrirLote()">&#128222; Imprimir Excel</button>
   </div>
 </div>
@@ -378,6 +379,66 @@
     </div>
     <div id="provList" style="max-height:300px;overflow-y:auto;"></div>
     <div id="provStatus" style="margin-top:8px;font-size:.82rem;"></div>
+  </div>
+</div>
+
+<!-- ── Estantería modal ── -->
+<div class="modal-overlay" id="estanteriaModal">
+  <div class="modal" style="width:min(900px,95vw);max-height:90vh;overflow-y:auto;">
+    <button class="close-btn" onclick="cerrarEstanteria()">&times;</button>
+    <h2>&#128230; Etiquetas Estanter&iacute;a</h2>
+    <p style="font-size:.83rem;color:#666;margin-bottom:10px;">
+      <strong>Col A</strong>=C&oacute;digo &middot; <strong>B</strong>=Referencia &middot; <strong>C</strong>=Descripci&oacute;n &middot; <strong>D</strong>=Cant (opc) &middot; desde fila 2
+    </p>
+
+    <input type="file" id="estExcelFile" accept=".xlsx,.xls" style="display:none"
+           onchange="cargarEstanteria(this.files[0])">
+    <div style="text-align:center;margin:10px 0;">
+      <button onclick="document.getElementById('estExcelFile').click()"
+              style="padding:10px 28px;background:#2e7d32;color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:600;cursor:pointer;">
+        &#128196; Seleccionar Excel
+      </button>
+    </div>
+    <div id="estDropMsg" style="text-align:center;font-size:.82rem;color:#888;margin-bottom:4px;"></div>
+    <div id="estStatus" class="modal-status"></div>
+
+    <div id="estConfig" style="display:none;">
+      <div style="display:flex;gap:20px;align-items:flex-start;margin-top:10px;">
+
+        <!-- tabla -->
+        <div style="flex:1;min-width:0;">
+          <div style="max-height:260px;overflow-y:auto;border:1px solid #eee;border-radius:6px;">
+            <table class="lote-table">
+              <thead>
+                <tr>
+                  <th style="width:32px;"><input type="checkbox" id="estSelectAll" checked onchange="toggleAllEst(this.checked)"></th>
+                  <th>C&oacute;digo</th>
+                  <th>Descripci&oacute;n</th>
+                  <th>Referencia</th>
+                  <th>Cant.</th>
+                </tr>
+              </thead>
+              <tbody id="estTableBody"></tbody>
+            </table>
+          </div>
+          <div id="estResumen" style="font-size:.8rem;color:#666;margin-top:8px;"></div>
+          <button class="btn-lote-print" id="btnEstPrint" onclick="imprimirEstanteria()" style="background:#2e7d32;">Imprimir todos</button>
+          <div class="lote-progress" id="estProgress" style="display:none;">
+            <span id="estProgressText"></span>
+            <div class="progress-bar-wrap"><div class="progress-bar-fill" id="estProgressBar" style="width:0%;background:#2e7d32;"></div></div>
+          </div>
+        </div>
+
+        <!-- preview -->
+        <div style="width:230px;flex-shrink:0;position:sticky;top:0;">
+          <div style="font-size:.8rem;font-weight:600;color:#555;margin-bottom:6px;text-align:center;">Vista previa</div>
+          <div id="estSvgPreview"></div>
+          <div style="font-size:.72rem;color:#aaa;text-align:center;margin-top:4px;">57 mm &times; 44 mm &middot; 203 DPI</div>
+          <div id="estPreviewInfo" style="font-size:.74rem;color:#888;margin-top:6px;text-align:center;">Clic en una fila para previsualizar</div>
+        </div>
+
+      </div>
+    </div>
   </div>
 </div>
 
@@ -897,6 +958,212 @@ function ejecutarImportar(file) {
 }
 document.getElementById('importarModal').addEventListener('click', function(e){
   if (e.target === this) cerrarImportar();
+});
+
+// ── Estantería ────────────────────────────────────────────────────────────────
+var estItems = [];
+var estPreviewIdx = -1;
+
+function abrirEstanteria() {
+  document.getElementById('estanteriaModal').classList.add('open');
+}
+function cerrarEstanteria() {
+  document.getElementById('estanteriaModal').classList.remove('open');
+}
+function setEstStatus(msg, tipo) {
+  var el = document.getElementById('estStatus');
+  el.textContent = msg;
+  el.className = 'modal-status' + (tipo ? ' ' + tipo : '');
+}
+
+// ── SVG preview estantería ────────────────────────────────────────────────────
+function svgEstEl(tag, attrs, text) {
+  var el = document.createElementNS(NS, tag);
+  for (var k in attrs) el.setAttribute(k, attrs[k]);
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+// Mirror of Python _band_zpl — same auto-sizing logic, same coordinate space.
+// ZPL ^FO y = top of character cell; SVG text y = baseline = top + font_size.
+// maxLines=1 forces single line (font shrinks); maxLines=2 allows word-wrap.
+function svgBand(svg, text, yStart, bandH, maxLines) {
+  maxLines = maxLines || 2;
+  text = String(text || '').trim();
+  if (!text) return;
+  var availW = 436, x = 10, ratio = 0.65, gap = 6;
+  var n = text.length;
+  var innerH = bandH - 14;
+  var f1 = Math.min(innerH, Math.floor(availW / (ratio * n)));
+  if (f1 >= 50 || maxLines === 1) {
+    var f = Math.max(20, f1);
+    var y = yStart + Math.floor((bandH - f) / 2);
+    svg.appendChild(svgEstEl('text', {
+      x: x, y: y + f,
+      'font-family': 'monospace', 'font-size': f, 'font-weight': 'bold'
+    }, text));
+    return;
+  }
+  // Two lines
+  var mid = Math.floor(n / 2);
+  var spaces = [];
+  for (var i = 0; i < n; i++) if (text[i] === ' ') spaces.push(i);
+  var cut = mid;
+  if (spaces.length > 0)
+    cut = spaces.reduce(function(b, sp) { return Math.abs(sp - mid) < Math.abs(b - mid) ? sp : b; }, spaces[0]);
+  var l1 = text.slice(0, cut).trim();
+  var l2 = text.slice(cut).trim();
+  var longerN = Math.max(l1.length, l2.length, 1);
+  var f2 = Math.max(24, Math.min(Math.floor((innerH - gap) / 2), Math.floor(availW / (ratio * longerN))));
+  var cpl = Math.floor(availW / (ratio * f2));
+  l1 = l1.slice(0, cpl); l2 = l2.slice(0, cpl);
+  var blockH = 2 * f2 + gap;
+  var y1 = yStart + Math.floor((bandH - blockH) / 2);
+  svg.appendChild(svgEstEl('text', {
+    x: x, y: y1 + f2,
+    'font-family': 'monospace', 'font-size': f2, 'font-weight': 'bold'
+  }, l1));
+  if (l2) svg.appendChild(svgEstEl('text', {
+    x: x, y: y1 + 2 * f2 + gap,
+    'font-family': 'monospace', 'font-size': f2, 'font-weight': 'bold'
+  }, l2));
+}
+
+function actualizarPreviewEst(item) {
+  var container = document.getElementById('estSvgPreview');
+  if (!container) return;
+  var svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 456 352');
+  svg.style.cssText = 'width:100%;border:1px solid #ccc;border-radius:4px;background:#fff;display:block;';
+  svg.appendChild(svgEstEl('rect', {x:4,y:4,width:448,height:344,fill:'none',stroke:'#000','stroke-width':2}));
+  svg.appendChild(svgEstEl('line', {x1:4,y1:118,x2:452,y2:118,stroke:'#000','stroke-width':2}));
+  svg.appendChild(svgEstEl('line', {x1:4,y1:234,x2:452,y2:234,stroke:'#000','stroke-width':2}));
+  svgBand(svg, item.codigo,      4,   114, 1);
+  svgBand(svg, item.descripcion, 118, 116, 2);
+  svgBand(svg, item.referencia,  234, 114, 1);
+  container.innerHTML = '';
+  container.appendChild(svg);
+  document.getElementById('estPreviewInfo').textContent = String(item.codigo || '—');
+}
+
+function previewEstItem(idx) {
+  estPreviewIdx = idx;
+  // Highlight selected row
+  document.querySelectorAll('#estTableBody tr').forEach(function(tr, i){
+    tr.style.background = i === idx ? '#e8f5e9' : '';
+  });
+  actualizarPreviewEst(estItems[idx]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+function cargarEstanteria(file) {
+  if (!file) return;
+  document.getElementById('estDropMsg').textContent = 'Procesando ' + file.name + '...';
+  setEstStatus('', '');
+  document.getElementById('estConfig').style.display = 'none';
+  var fd = new FormData();
+  fd.append('excel', file);
+  fetch('/api/estanteria/preview', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      document.getElementById('estExcelFile').value = '';
+      if (!d.ok) {
+        document.getElementById('estDropMsg').textContent = '';
+        setEstStatus('Error: ' + (d.error || 'No se pudo leer el archivo'), 'err');
+        return;
+      }
+      estItems = d.items;
+      document.getElementById('estDropMsg').textContent = file.name + ' — ' + estItems.length + ' productos';
+      renderEstTable();
+      document.getElementById('estConfig').style.display = 'block';
+      if (estItems.length > 0) previewEstItem(0);
+    })
+    .catch(function(e){
+      document.getElementById('estExcelFile').value = '';
+      document.getElementById('estDropMsg').textContent = '';
+      setEstStatus('Error de red: ' + e.message, 'err');
+    });
+}
+
+function renderEstTable() {
+  var tbody = document.getElementById('estTableBody');
+  tbody.innerHTML = estItems.map(function(item, i){
+    return '<tr id="est-row-' + i + '" style="cursor:pointer;" onclick="previewEstItem(' + i + ')">' +
+      '<td onclick="event.stopPropagation()"><input type="checkbox" class="est-cb" checked data-idx="' + i + '" onchange="toggleEstRow(' + i + ',this.checked)"></td>' +
+      '<td>' + esc(item.codigo) + '</td>' +
+      '<td>' + esc(item.descripcion) + '</td>' +
+      '<td>' + esc(item.referencia) + '</td>' +
+      '<td onclick="event.stopPropagation()"><input type="number" min="1" value="' + item.cantidad + '" style="width:54px;padding:3px 5px;border:1px solid #d0d5dd;border-radius:4px;font-size:.82rem;" onchange="estItems[' + i + '].cantidad=Math.max(1,parseInt(this.value)||1);actualizarResumenEst()"></td>' +
+      '</tr>';
+  }).join('');
+  actualizarResumenEst();
+}
+
+function toggleEstRow(idx, checked) {
+  var row = document.getElementById('est-row-' + idx);
+  if (checked) row.classList.remove('skipped');
+  else row.classList.add('skipped');
+  actualizarResumenEst();
+}
+function toggleAllEst(checked) {
+  document.querySelectorAll('.est-cb').forEach(function(cb){
+    cb.checked = checked;
+    toggleEstRow(parseInt(cb.dataset.idx), checked);
+  });
+}
+function actualizarResumenEst() {
+  var cbs = document.querySelectorAll('.est-cb:checked');
+  var totalEtiquetas = 0;
+  cbs.forEach(function(cb){ totalEtiquetas += estItems[parseInt(cb.dataset.idx)].cantidad; });
+  document.getElementById('estResumen').textContent = cbs.length + ' productos seleccionados — ' + totalEtiquetas + ' etiquetas en total';
+  document.getElementById('btnEstPrint').textContent = 'Imprimir ' + cbs.length + ' productos';
+}
+
+function imprimirEstanteria() {
+  var seleccionados = [];
+  document.querySelectorAll('.est-cb:checked').forEach(function(cb){
+    seleccionados.push(estItems[parseInt(cb.dataset.idx)]);
+  });
+  if (seleccionados.length === 0) { alert('No hay productos seleccionados.'); return; }
+  var printer = getPrinterCfg();
+  var btn = document.getElementById('btnEstPrint');
+  btn.disabled = true;
+  var progress = document.getElementById('estProgress');
+  var progText = document.getElementById('estProgressText');
+  var progBar  = document.getElementById('estProgressBar');
+  progress.style.display = 'block';
+  setEstStatus('', '');
+  var idx = 0, errors = 0;
+  function printNext() {
+    if (idx >= seleccionados.length) {
+      btn.disabled = false;
+      var msg = 'Lote completado: ' + seleccionados.length + ' productos';
+      if (errors > 0) msg += ' (' + errors + ' con error)';
+      setEstStatus(msg, errors === 0 ? 'ok' : 'err');
+      progText.textContent = 'Listo.';
+      progBar.style.width = '100%';
+      return;
+    }
+    var item = seleccionados[idx];
+    progText.textContent = (idx + 1) + ' / ' + seleccionados.length + ' — ' + item.codigo;
+    progBar.style.width = Math.round((idx / seleccionados.length) * 100) + '%';
+    fetch('/imprimir_estanteria', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        codigo: item.codigo, descripcion: item.descripcion,
+        referencia: item.referencia, cantidad: item.cantidad,
+        printer: printer
+      })
+    }).then(function(r){ return r.json(); })
+      .then(function(d){ if (!d.ok) errors++; })
+      .catch(function(){ errors++; })
+      .finally(function(){ idx++; printNext(); });
+  }
+  printNext();
+}
+
+document.getElementById('estanteriaModal').addEventListener('click', function(e){
+  if (e.target === this) cerrarEstanteria();
 });
 </script>
 </body>
