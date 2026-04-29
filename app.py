@@ -363,18 +363,16 @@ def estanteria_preview():
     except Exception as e:
         return jsonify({'error': f'Error al leer el Excel: {e}'}), 400
 
+    seen = set()
     items = []
     for row in rows[1:]:
-        if len(row) < 2: continue
+        if len(row) < 1: continue
         codigo = str(row[0] or '').strip().upper()
-        ref    = str(row[1] or '').strip() if len(row) > 1 else ''
-        desc   = str(row[2] or '').strip() if len(row) > 2 else ''
-        if not codigo: continue
-        try:
-            cant = max(1, int(float(row[3] or 1))) if len(row) > 3 else 1
-        except Exception:
-            cant = 1
-        items.append({'codigo': codigo, 'descripcion': desc, 'referencia': ref, 'cantidad': cant})
+        if not codigo or codigo in seen: continue
+        seen.add(codigo)
+        desc = str(row[1] or '').strip() if len(row) > 1 else ''
+        ref  = str(row[4] or '').strip() if len(row) > 4 else ''
+        items.append({'codigo': codigo, 'descripcion': desc, 'referencia': ref, 'cantidad': 1})
     return jsonify({'ok': True, 'items': items})
 
 
