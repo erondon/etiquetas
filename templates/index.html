@@ -42,6 +42,12 @@
   /* ── Main layout ── */
   .main { display: flex; gap: 20px; padding: 20px; max-width: 1100px; margin: 0 auto; }
 
+  /* ── Mode toggle ── */
+  .mode-toggle { display:flex; border:1px solid #d0d5dd; border-radius:8px; overflow:hidden; margin-bottom:18px; }
+  .mode-btn { flex:1; padding:8px; border:none; background:#f5f6fa; cursor:pointer; font-size:.85rem; font-weight:600; color:#555; transition:background .15s; }
+  .mode-btn.active { background:#1a1a2e; color:#fff; }
+  .mode-btn:not(:last-child) { border-right:1px solid #d0d5dd; }
+
   /* ── Form panel ── */
   .form-panel {
     flex: 1; background: #fff; border-radius: 12px;
@@ -185,6 +191,11 @@
   <div class="form-panel">
     <h2>Nueva Etiqueta</h2>
 
+    <div class="mode-toggle">
+      <button id="btnModoProducto" class="mode-btn active" onclick="setModo('producto')">&#127991; Producto</button>
+      <button id="btnModoEst" class="mode-btn" onclick="setModo('estanteria')">&#128230; Estanter&iacute;a</button>
+    </div>
+
     <div class="field">
       <label>C&#243;digo</label>
       <input type="text" id="fCodigo" placeholder="Ej: 10020030" oninput="buscarCatalogo()">
@@ -196,7 +207,12 @@
       <div class="catalog-hint" id="catalogHint"></div>
     </div>
 
-    <div class="row2">
+    <div class="field estanteria-only" style="display:none;">
+      <label>Referencia</label>
+      <input type="text" id="fEstRef" placeholder="Ej: ROLINERA DELANTERA" oninput="actualizarPreview()">
+    </div>
+
+    <div class="row2 producto-only">
       <div class="field">
         <label>Precio de Venta (USD)</label>
         <input type="number" id="fPrecio" min="0" step="0.01" placeholder="0.00" oninput="actualizarPreview()">
@@ -207,7 +223,7 @@
       </div>
     </div>
 
-    <div class="row2">
+    <div class="row2 producto-only">
       <div class="field">
         <label>Proveedor <a href="#" onclick="abrirProveedores();return false;" style="font-size:.75rem;margin-left:6px;">&#9881; Gestionar</a></label>
         <select id="fProveedor" onchange="actualizarPreview()">
@@ -448,6 +464,23 @@ var activePrinterTab = 'windows';
 var tasa = 1.0;
 var NS = 'http://www.w3.org/2000/svg';
 var MUR_MAP = {'0':'O','1':'M','2':'U','3':'R','4':'C','5':'I','6':'E','7':'L','8':'A','9':'G'};
+var modoActivo = 'producto';
+
+// ── Toggle modo ───────────────────────────────────────────────────────────────
+function setModo(modo) {
+  modoActivo = modo;
+  document.getElementById('btnModoProducto').classList.toggle('active', modo === 'producto');
+  document.getElementById('btnModoEst').classList.toggle('active', modo === 'estanteria');
+  document.querySelectorAll('.producto-only').forEach(function(el){
+    el.style.display = modo === 'producto' ? '' : 'none';
+  });
+  document.querySelectorAll('.estanteria-only').forEach(function(el){
+    el.style.display = modo === 'estanteria' ? '' : 'none';
+  });
+  var btn = document.querySelector('.btn-print');
+  btn.textContent = modo === 'estanteria' ? 'Imprimir Estantería' : 'Imprimir Etiqueta';
+  actualizarPreview();
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init() {
@@ -522,6 +555,7 @@ function svgEl(tag, attrs, text) {
 }
 
 function actualizarPreview() {
+  if (modoActivo === 'estanteria') { actualizarPreviewEstMain(); return; }
   var container = document.getElementById('svgPreview');
   try {
     var codigo      = (document.getElementById('fCodigo').value || '').slice(0, 20);
@@ -595,8 +629,51 @@ function barcodeStripes(text, x, y, h) {
   return bars;
 }
 
+// ── Estantería manual (desde form principal) ──────────────────────────────────
+function actualizarPreviewEstMain() {
+  var container = document.getElementById('svgPreview');
+  var svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 456 352');
+  svg.style.cssText = 'width:100%;border:1px solid #ccc;border-radius:4px;background:#fff;display:block;';
+  svg.appendChild(svgEstEl('rect', {x:4,y:4,width:448,height:344,fill:'none',stroke:'#000','stroke-width':2}));
+  svg.appendChild(svgEstEl('line', {x1:4,y1:118,x2:452,y2:118,stroke:'#000','stroke-width':2}));
+  svg.appendChild(svgEstEl('line', {x1:4,y1:234,x2:452,y2:234,stroke:'#000','stroke-width':2}));
+  svgBand(svg, (document.getElementById('fCodigo').value  || '').trim(), 4,   114, 1);
+  svgBand(svg, (document.getElementById('fDescripcion').value || '').trim(), 118, 116, 2);
+  svgBand(svg, (document.getElementById('fEstRef').value  || '').trim(), 234, 114, 1);
+  container.innerHTML = '';
+  container.appendChild(svg);
+}
+
+function imprimirEstanteriaManual() {
+  var statusBar = document.getElementById('statusBar');
+  statusBar.className = 'status-bar';
+  statusBar.textContent = '';
+  var codigo      = document.getElementById('fCodigo').value.trim();
+  var descripcion = document.getElementById('fDescripcion').value.trim();
+  var referencia  = document.getElementById('fEstRef').value.trim();
+  var cantidad    = parseInt(document.getElementById('fCantidad').value || 1) || 1;
+  if (!codigo) { showStatus('Ingresa un código', false); return; }
+  var printerCfg = getPrinterCfg();
+  if (activePrinterTab === 'windows' && !printerCfg.printer_name) { showStatus('Ingresa el nombre de la impresora', false); return; }
+  if (activePrinterTab === 'red'     && !printerCfg.ip)           { showStatus('Ingresa la IP de la impresora', false); return; }
+  var btn = document.querySelector('.btn-print');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  fetch('/imprimir_estanteria', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({codigo: codigo, descripcion: descripcion, referencia: referencia, cantidad: cantidad, printer: printerCfg})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    showStatus(d.mensaje || (d.ok ? 'Impreso correctamente' : 'Error al imprimir'), d.ok);
+  }).catch(function(e){
+    showStatus('Error de conexión: ' + e.message, false);
+  }).finally(function(){
+    btn.disabled = false; btn.textContent = 'Imprimir Estantería';
+  });
+}
+
 // ── Print ─────────────────────────────────────────────────────────────────────
 function imprimir() {
+  if (modoActivo === 'estanteria') { imprimirEstanteriaManual(); return; }
   var statusBar = document.getElementById('statusBar');
   statusBar.className = 'status-bar';
   statusBar.textContent = '';
