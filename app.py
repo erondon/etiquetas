@@ -392,17 +392,21 @@ def imprimir_estanteria():
     ref    = str(d.get('referencia', '')).strip()
     zpl  = generar_zpl_estanteria(codigo, desc, ref, d.get('cantidad', 1))
 
-    # Persist referencia (and descripcion) for this código
+    # Persist referencia (and descripcion) — isolated so DB errors never block printing
     if codigo:
-        db = get_db()
-        exists = db.execute('SELECT 1 FROM lote_productos WHERE codigo=?', (codigo,)).fetchone()
-        if exists:
-            db.execute('UPDATE lote_productos SET referencia=?, descripcion=? WHERE codigo=?',
-                       (ref, desc or codigo, codigo))
-        else:
-            db.execute('INSERT INTO lote_productos (codigo, descripcion, referencia, cantidad, costo_usd, precio_venta) VALUES (?,?,?,1,0,0)',
-                       (codigo, desc or codigo, ref))
-        db.commit()
+        try:
+            db = get_db()
+            exists = db.execute('SELECT 1 FROM lote_productos WHERE codigo=?', (codigo,)).fetchone()
+            if exists:
+                db.execute('UPDATE lote_productos SET referencia=?, descripcion=? WHERE codigo=?',
+                           (ref, desc or codigo, codigo))
+            else:
+                db.execute(
+                    'INSERT INTO lote_productos (codigo, descripcion, referencia, cantidad, costo_usd, precio_venta) VALUES (?,?,?,1,0,0)',
+                    (codigo, desc or codigo, ref))
+            db.commit()
+        except Exception as e:
+            app.logger.warning('No se pudo guardar referencia para %s: %s', codigo, e)
     if modo == 'red':
         ip = cfg.get('ip', '').strip()
         if not ip: return jsonify({'error': 'Debe indicar la IP'}), 400
@@ -451,6 +455,18 @@ def api_tasa():
         return jsonify({'ok': True, 'tasa': tasa})
     row = db.execute("SELECT valor FROM configuracion WHERE clave='tasa_cambio'").fetchone()
     return jsonify({'tasa': float(row[0]) if row else 1.0})
+
+def _apply_migrations():
+    """Run at every startup to add new columns to existing databases."""
+    db = sqlite3.connect(app.config['DATABASE'])
+    try:
+        db.execute("ALTER TABLE lote_productos ADD COLUMN referencia TEXT DEFAULT ''")
+        db.commit()
+    except Exception:
+        pass  # column already exists
+    db.close()
+
+_apply_migrations()
 
 if __name__ == '__main__':
     init_db()
