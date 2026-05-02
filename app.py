@@ -39,13 +39,19 @@ def init_db():
     """)
     db.execute("""
         CREATE TABLE IF NOT EXISTS lote_productos (
-            codigo      TEXT PRIMARY KEY,
-            descripcion TEXT NOT NULL,
-            cantidad    INTEGER DEFAULT 1,
-            costo_usd   REAL DEFAULT 0,
-            precio_venta REAL DEFAULT 0
+            codigo       TEXT PRIMARY KEY,
+            descripcion  TEXT NOT NULL,
+            cantidad     INTEGER DEFAULT 1,
+            costo_usd    REAL DEFAULT 0,
+            precio_venta REAL DEFAULT 0,
+            referencia   TEXT DEFAULT ''
         )
     """)
+    # Migration: add referencia column to existing databases
+    try:
+        db.execute("ALTER TABLE lote_productos ADD COLUMN referencia TEXT DEFAULT ''")
+    except Exception:
+        pass
     db.commit()
     db.close()
 
@@ -200,11 +206,11 @@ def catalogo_buscar():
     if not codigo:
         return jsonify({'descripcion': None})
     row = get_db().execute(
-        'SELECT descripcion, cantidad, costo_usd, precio_venta FROM lote_productos WHERE codigo=?', (codigo,)
+        'SELECT descripcion, cantidad, costo_usd, precio_venta, referencia FROM lote_productos WHERE codigo=?', (codigo,)
     ).fetchone()
     if row:
         return jsonify({'descripcion': row[0], 'cantidad': row[1],
-                        'costo_usd': row[2], 'precio_venta': row[3]})
+                        'costo_usd': row[2], 'precio_venta': row[3], 'referencia': row[4] or ''})
     return jsonify({'descripcion': None})
 
 @app.route('/api/productos/importar', methods=['POST'])
@@ -381,10 +387,22 @@ def imprimir_estanteria():
     d    = request.json or {}
     cfg  = d.get('printer', {})
     modo = cfg.get('modo', 'windows')
-    zpl  = generar_zpl_estanteria(
-        d.get('codigo', ''), d.get('descripcion', ''),
-        d.get('referencia', ''), d.get('cantidad', 1)
-    )
+    codigo = str(d.get('codigo', '')).strip().upper()
+    desc   = str(d.get('descripcion', '')).strip()
+    ref    = str(d.get('referencia', '')).strip()
+    zpl  = generar_zpl_estanteria(codigo, desc, ref, d.get('cantidad', 1))
+
+    # Persist referencia (and descripcion) for this código
+    if codigo:
+        db = get_db()
+        exists = db.execute('SELECT 1 FROM lote_productos WHERE codigo=?', (codigo,)).fetchone()
+        if exists:
+            db.execute('UPDATE lote_productos SET referencia=?, descripcion=? WHERE codigo=?',
+                       (ref, desc or codigo, codigo))
+        else:
+            db.execute('INSERT INTO lote_productos (codigo, descripcion, referencia, cantidad, costo_usd, precio_venta) VALUES (?,?,?,1,0,0)',
+                       (codigo, desc or codigo, ref))
+        db.commit()
     if modo == 'red':
         ip = cfg.get('ip', '').strip()
         if not ip: return jsonify({'error': 'Debe indicar la IP'}), 400

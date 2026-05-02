@@ -527,6 +527,7 @@ function buscarCatalogo() {
           document.getElementById('fDescripcion').value = d.descripcion;
           if (d.precio_venta != null) document.getElementById('fPrecio').value = d.precio_venta;
           if (d.costo_usd    != null) document.getElementById('fCosto').value  = d.costo_usd;
+          if (d.referencia)           document.getElementById('fEstRef').value  = d.referencia;
           hint.textContent = '\u2713 Producto cargado automáticamente';
           hint.className = 'catalog-hint catalog-hit';
           actualizarPreview();
