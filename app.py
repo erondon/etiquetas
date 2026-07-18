@@ -180,6 +180,17 @@ def enviar_usb(zpl, port='COM1'):
     except Exception as e:
         return False, str(e)
 
+# ── Helpers Excel ─────────────────────────────────────────────────────────────
+def _col_map(header_row):
+    return {str(v or '').strip().lower(): i for i, v in enumerate(header_row)}
+
+def _get(row, col_map, *names, default=None):
+    for name in names:
+        idx = col_map.get(name.lower())
+        if idx is not None and idx < len(row):
+            return row[idx]
+    return default
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
@@ -236,21 +247,28 @@ def productos_importar():
     except Exception as e:
         return jsonify({'error': f'Error al leer el Excel: {e}'}), 400
 
+    if not rows:
+        return jsonify({'error': 'El archivo está vacío'}), 400
+    cm = _col_map(rows[0])
     db = get_db()
     insertados, actualizados = 0, 0
     for row in rows[1:]:
-        if len(row) < 2: continue
-        codigo = str(row[0] or '').strip().upper()
-        desc   = str(row[1] or '').strip()
+        codigo = str(_get(row, cm, 'codigo') or '').strip().upper()
+        desc   = str(_get(row, cm, 'descripcion') or '').strip()
         if not codigo or not desc: continue
+        try: costo  = float(_get(row, cm, 'costo',  'costo_usd',    default=0) or 0)
+        except: costo = 0.0
+        try: precio = float(_get(row, cm, 'precio', 'precio_venta', default=0) or 0)
+        except: precio = 0.0
         existe = db.execute('SELECT 1 FROM lote_productos WHERE codigo=?', (codigo,)).fetchone()
         if existe:
-            db.execute('UPDATE lote_productos SET descripcion=? WHERE codigo=?', (desc, codigo))
+            db.execute('UPDATE lote_productos SET descripcion=?, costo_usd=?, precio_venta=? WHERE codigo=?',
+                       (desc, costo, precio, codigo))
             actualizados += 1
         else:
             db.execute(
-                'INSERT INTO lote_productos (codigo, descripcion, cantidad, costo_usd, precio_venta) VALUES (?,?,1,0,0)',
-                (codigo, desc)
+                'INSERT INTO lote_productos (codigo, descripcion, cantidad, costo_usd, precio_venta) VALUES (?,?,1,?,?)',
+                (codigo, desc, costo, precio)
             )
             insertados += 1
     db.commit()
@@ -287,16 +305,18 @@ def lote_preview():
         try: return max(1, int(float(v or 1)))
         except: return 1
 
+    if not rows:
+        return jsonify({'error': 'El archivo está vacío'}), 400
+    cm = _col_map(rows[0])
     items = []
     for row in rows[1:]:
-        if len(row) < 2: continue
-        codigo = str(row[0] or '').strip().upper()
-        desc   = str(row[1] or '').strip()
+        codigo = str(_get(row, cm, 'codigo') or '').strip().upper()
+        desc   = str(_get(row, cm, 'descripcion') or '').strip()
         if not codigo or not desc:
             continue
-        cantidad = to_int(row[4])   if len(row) > 4  else 1
-        costo    = to_float(row[6]) if len(row) > 6  else 0.0
-        precio   = to_float(row[10]) if len(row) > 10 else 0.0
+        cantidad = to_int(_get(row, cm, 'stock', 'cantidad', default=1))
+        costo    = to_float(_get(row, cm, 'costo', 'costo_usd', default=0))
+        precio   = to_float(_get(row, cm, 'precio', 'precio_venta', default=0))
         items.append({'codigo': codigo, 'descripcion': desc,
                       'cantidad': cantidad, 'costo_usd': costo, 'precio_venta': precio})
 
@@ -320,10 +340,11 @@ def imprimir_custom():
         'cantidad':    int(d.get('cantidad', 1)),
         'referencia':  d.get('referencia', ''),
     }
-    precio_venta = d.get('precio_venta', 0)
-    costo_usd    = d.get('costo_usd', 0)
+    precio_venta   = d.get('precio_venta', 0)
+    costo_usd      = d.get('costo_usd', 0)
+    precio_etiqueta = round(float(precio_venta or 0) * 1.25, 2)
     ts  = int(datetime.utcnow().timestamp())
-    zpl = generar_zpl_item(item, precio_venta, costo_usd, ts)
+    zpl = generar_zpl_item(item, precio_etiqueta, costo_usd, ts)
 
     # Actualizar precio y costo en DB si el producto existe
     db = get_db()
@@ -369,15 +390,17 @@ def estanteria_preview():
     except Exception as e:
         return jsonify({'error': f'Error al leer el Excel: {e}'}), 400
 
+    if not rows:
+        return jsonify({'error': 'El archivo está vacío'}), 400
+    cm = _col_map(rows[0])
     seen = set()
     items = []
     for row in rows[1:]:
-        if len(row) < 1: continue
-        codigo = str(row[0] or '').strip().upper()
+        codigo = str(_get(row, cm, 'codigo') or '').strip().upper()
         if not codigo or codigo in seen: continue
         seen.add(codigo)
-        desc = str(row[1] or '').strip() if len(row) > 1 else ''
-        ref  = str(row[4] or '').strip() if len(row) > 4 else ''
+        desc = str(_get(row, cm, 'descripcion', default='') or '').strip()
+        ref  = str(_get(row, cm, 'referencia',  default='') or '').strip()
         items.append({'codigo': codigo, 'descripcion': desc, 'referencia': ref, 'cantidad': 1})
     return jsonify({'ok': True, 'items': items})
 

@@ -216,6 +216,7 @@
       <div class="field">
         <label>Precio de Venta (USD)</label>
         <input type="number" id="fPrecio" min="0" step="0.01" placeholder="0.00" oninput="actualizarPreview()">
+        <div class="catalog-hint" id="precioEtiquetaHint"></div>
       </div>
       <div class="field">
         <label>Costo (USD)</label>
@@ -570,7 +571,10 @@ function actualizarPreview() {
     var referencia = (proveedor && factura) ? proveedor + '-' + factura
                    : proveedor || factura;
 
-    var pvStr      = precio.toFixed(2);
+    var precioEtiqueta = precio * 1.25;
+    var pvStr      = precioEtiqueta.toFixed(2);
+    var hint = document.getElementById('precioEtiquetaHint');
+    if (hint) hint.textContent = precio > 0 ? 'Etiqueta: ' + pvStr : '';
     var murcielago = aMurcielago(costo);
     var ts         = Math.floor(Date.now() / 1000);
     var bc         = codigo.replace(/[^A-Z0-9]/gi,'').toUpperCase() || 'PROD';
