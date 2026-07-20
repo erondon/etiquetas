@@ -781,11 +781,40 @@ function setLoteStatus(msg, tipo) {
   el.className = 'modal-status' + (tipo ? ' ' + tipo : '');
 }
 
+function parsearNombreExcel(nombre) {
+  var m = nombre.match(/^etiquetas_(\d+)_([A-Za-z0-9]+)\.(xlsx|xls)$/i);
+  if (!m) return null;
+  return { factura: m[1], provNombre: m[2].toUpperCase() };
+}
+
+function aplicarMetadatosExcel(nombre) {
+  var info = parsearNombreExcel(nombre);
+  var selProv  = document.getElementById('loteProveedor');
+  var inpFact  = document.getElementById('loteFactura');
+  if (!info) {
+    selProv.value = '';
+    inpFact.value = '';
+    return;
+  }
+  inpFact.value = info.factura;
+  var encontrado = false;
+  for (var i = 0; i < selProv.options.length; i++) {
+    var txt = selProv.options[i].text.toUpperCase();
+    if (txt === info.provNombre || txt.indexOf(info.provNombre + ' (') === 0) {
+      selProv.value = selProv.options[i].value;
+      encontrado = true;
+      break;
+    }
+  }
+  if (!encontrado) selProv.value = '';
+}
+
 function cargarLote(file) {
   if (!file) return;
   document.getElementById('loteDropMsg').textContent = 'Procesando ' + file.name + '...';
   setLoteStatus('', '');
   document.getElementById('loteConfig').style.display = 'none';
+  aplicarMetadatosExcel(file.name);
 
   var fd = new FormData();
   fd.append('excel', file);
