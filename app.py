@@ -181,12 +181,23 @@ def enviar_usb(zpl, port='COM1'):
         return False, str(e)
 
 # ── Helpers Excel ─────────────────────────────────────────────────────────────
+# Posiciones fijas para "Imprimir Excel" (sin encabezados, datos desde fila 2):
+#   A=0 código  B=1 descripción  E=4 cantidad  G=6 costo  K=10 precio
+_POS = {'codigo': 0, 'descripcion': 1, 'cantidad': 4, 'costo': 6, 'precio': 10}
+
 def _col_map(header_row):
     return {str(v or '').strip().lower(): i for i, v in enumerate(header_row)}
 
 def _get(row, col_map, *names, default=None):
     for name in names:
         idx = col_map.get(name.lower())
+        if idx is not None and idx < len(row):
+            return row[idx]
+    return default
+
+def _get_pos(row, *names, default=None):
+    for name in names:
+        idx = _POS.get(name.lower())
         if idx is not None and idx < len(row):
             return row[idx]
     return default
@@ -256,7 +267,7 @@ def productos_importar():
         codigo = str(_get(row, cm, 'codigo') or '').strip().upper()
         desc   = str(_get(row, cm, 'descripcion') or '').strip()
         if not codigo or not desc: continue
-        try: costo  = float(_get(row, cm, 'costo',  'costo_usd',    default=0) or 0)
+        try: costo  = float(_get(row, cm, 'costo', 'costo_usd',    default=0) or 0)
         except: costo = 0.0
         try: precio = float(_get(row, cm, 'precio', 'precio_venta', default=0) or 0)
         except: precio = 0.0
@@ -307,16 +318,15 @@ def lote_preview():
 
     if not rows:
         return jsonify({'error': 'El archivo está vacío'}), 400
-    cm = _col_map(rows[0])
     items = []
     for row in rows[1:]:
-        codigo = str(_get(row, cm, 'codigo') or '').strip().upper()
-        desc   = str(_get(row, cm, 'descripcion') or '').strip()
+        codigo = str(_get_pos(row, 'codigo') or '').strip().upper()
+        desc   = str(_get_pos(row, 'descripcion') or '').strip()
         if not codigo or not desc:
             continue
-        cantidad = to_int(_get(row, cm, 'stock', 'cantidad', default=1))
-        costo    = to_float(_get(row, cm, 'costo', 'costo_usd', default=0))
-        precio   = to_float(_get(row, cm, 'precio', 'precio_venta', default=0))
+        cantidad = to_int(_get_pos(row, 'cantidad', default=1))
+        costo    = to_float(_get_pos(row, 'costo', default=0))
+        precio   = to_float(_get_pos(row, 'precio', default=0))
         items.append({'codigo': codigo, 'descripcion': desc,
                       'cantidad': cantidad, 'costo_usd': costo, 'precio_venta': precio})
 
