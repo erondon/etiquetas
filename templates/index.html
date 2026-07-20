@@ -904,7 +904,8 @@ function imprimirLote() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         codigo: item.codigo, descripcion: item.descripcion,
-        precio_venta: item.precio_venta, costo_usd: item.costo_usd,
+        precio_venta: item.precio_venta, precio_etiqueta: item.precio_venta,
+        costo_usd: item.costo_usd,
         referencia: referencia, cantidad: item.cantidad,
         printer: printer
       })

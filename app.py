@@ -350,9 +350,13 @@ def imprimir_custom():
         'cantidad':    int(d.get('cantidad', 1)),
         'referencia':  d.get('referencia', ''),
     }
-    precio_venta   = d.get('precio_venta', 0)
-    costo_usd      = d.get('costo_usd', 0)
-    precio_etiqueta = round(float(precio_venta or 0) * 1.25, 2)
+    precio_venta    = d.get('precio_venta', 0)
+    costo_usd       = d.get('costo_usd', 0)
+    precio_directo  = d.get('precio_etiqueta')
+    if precio_directo is not None:
+        precio_etiqueta = round(float(precio_directo or 0), 2)
+    else:
+        precio_etiqueta = round(float(precio_venta or 0) * 1.25, 2)
     ts  = int(datetime.utcnow().timestamp())
     zpl = generar_zpl_item(item, precio_etiqueta, costo_usd, ts)
 
